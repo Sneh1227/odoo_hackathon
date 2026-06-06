@@ -1,5 +1,5 @@
 const nodemailer = require("nodemailer");
-const { getWelcomeEmail, getPasswordResetEmail, getVendorApprovalEmail } = require("./emailTemplates");
+const { getWelcomeEmail, getPasswordResetEmail, getVendorApprovalEmail, getVendorDeclineEmail, getAdminNewVendorNotificationEmail } = require("./emailTemplates");
 require("dotenv").config();
 
 // Default values point to Gmail SMTP
@@ -105,15 +105,44 @@ const sendPasswordResetEmail = async (toEmail, userName, resetLink, expiryInfo =
 /**
  * Sends a vendor approval success email.
  */
-const sendVendorApprovalEmail = async (toEmail, userName) => {
+const sendVendorApprovalEmail = async (toEmail, userName, remarks) => {
   const portalLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/login`;
-  const html = getVendorApprovalEmail(userName, portalLink);
+  const html = getVendorApprovalEmail(userName, portalLink, remarks);
   
   return sendEmail({
     to: toEmail,
     subject: "Your Vendor Account Has Been Approved! - VendorBridge ERP",
     html,
-    text: `Hello ${userName}, congratulations! Your VendorBridge ERP account has been approved by our procurement team. You can now log in at ${portalLink} to access your portal.`,
+    text: `Hello ${userName}, congratulations! Your VendorBridge ERP account has been approved by our procurement team. Remarks: ${remarks || "Approved."} You can now log in at ${portalLink} to access your portal.`,
+  });
+};
+
+/**
+ * Sends a vendor decline email.
+ */
+const sendVendorDeclineEmail = async (toEmail, userName, remarks) => {
+  const html = getVendorDeclineEmail(userName, remarks);
+  
+  return sendEmail({
+    to: toEmail,
+    subject: "Vendor Account Registration Update - VendorBridge ERP",
+    html,
+    text: `Hello ${userName}, we regret to inform you that your vendor account application has been declined. Remarks: ${remarks || "Declined."}`,
+  });
+};
+
+/**
+ * Sends a notification email to an admin when a new vendor registers.
+ */
+const sendAdminVendorRegistrationNotification = async (adminEmail, adminName, vendorName, vendorEmail) => {
+  const portalLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/login`;
+  const html = getAdminNewVendorNotificationEmail(adminName, vendorName, vendorEmail, portalLink);
+  
+  return sendEmail({
+    to: adminEmail,
+    subject: "Action Required: New Vendor Registration Awaiting Approval",
+    html,
+    text: `Hello ${adminName}, a new vendor (${vendorName}, email: ${vendorEmail}) has registered on VendorBridge ERP. Please review and approve/decline them at ${portalLink}`,
   });
 };
 
@@ -123,4 +152,6 @@ module.exports = {
   sendWelcomeEmail,
   sendPasswordResetEmail,
   sendVendorApprovalEmail,
+  sendVendorDeclineEmail,
+  sendAdminVendorRegistrationNotification,
 };

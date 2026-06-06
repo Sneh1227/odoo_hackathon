@@ -22,6 +22,22 @@ const Login = () => {
 
   // Detect Google OAuth callback parameters on mount
   useEffect(() => {
+    const existingToken = localStorage.getItem("token");
+    const existingUserJson = localStorage.getItem("user");
+    const sessionExpired = searchParams.get("session_expired");
+
+    if (existingToken && existingUserJson && !sessionExpired) {
+      try {
+        const u = JSON.parse(existingUserJson);
+        if (u && u.role) {
+          redirectUser(u.role);
+          return;
+        }
+      } catch (e) {
+        console.error("Error parsing logged in user", e);
+      }
+    }
+
     const token = searchParams.get("token");
     const role = searchParams.get("role");
     const fullName = searchParams.get("fullName");
@@ -49,7 +65,6 @@ const Login = () => {
       redirectUser(role);
     }
 
-    const sessionExpired = searchParams.get("session_expired");
     if (sessionExpired) {
       setApiError("Your session has expired. Please log in again.");
     }

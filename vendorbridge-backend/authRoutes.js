@@ -53,9 +53,11 @@ router.get("/google/callback", (req, res, next) => {
 
       const fullNameEncoded = encodeURIComponent(user.full_name || "");
       const roleEncoded = encodeURIComponent(roleName);
+      const isVerifiedEncoded = encodeURIComponent(user.is_verified || false);
+      const statusEncoded = encodeURIComponent(user.status || "");
 
       return res.redirect(
-        `${FRONTEND_URL}/login?token=${token}&role=${roleEncoded}&fullName=${fullNameEncoded}`,
+        `${FRONTEND_URL}/login?token=${token}&role=${roleEncoded}&fullName=${fullNameEncoded}&isVerified=${isVerifiedEncoded}&status=${statusEncoded}`,
       );
     } catch (tokenErr) {
       console.error("Google Auth Token Generation Error:", tokenErr);

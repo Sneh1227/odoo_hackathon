@@ -71,6 +71,11 @@ export const authService = {
     return response.data;
   },
 
+  approveVendor: async (id, action, remarks) => {
+    const response = await api.put(`/auth/approve-vendor/${id}`, { action, remarks });
+    return response.data;
+  },
+
   getProfile: async () => {
     const response = await api.get("/auth/profile");
     return response.data;
@@ -85,6 +90,33 @@ export const authService = {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
   },
+};
+
+export const dashboardService = {
+  getAdminData: async () => {
+    const response = await api.get("/dashboard/admin");
+    return response.data;
+  },
+  getVendorData: async () => {
+    const response = await api.get("/dashboard/vendor");
+    return response.data;
+  },
+  getProcurementData: async () => {
+    const response = await api.get("/dashboard/procurement");
+    return response.data;
+  },
+  getManagerData: async () => {
+    const response = await api.get("/dashboard/manager");
+    return response.data;
+  },
+  getActivityLogs: async () => {
+    const response = await api.get("/dashboard/logs");
+    return response.data;
+  },
+  handleApproval: async (id, action, remarks) => {
+    const response = await api.put(`/dashboard/approval/${id}`, { action, remarks });
+    return response.data;
+  }
 };
 
 export default api;
