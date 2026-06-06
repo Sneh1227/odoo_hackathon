@@ -1,69 +1,130 @@
 import React from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import "./App.css";
 import { ProcurementProvider } from "./context/ProcurementContext";
+import { AuthProvider } from "./context/AuthContext";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import PortalPage from "./pages/PortalPage";
-import ProtectedRoute from "./components/ProtectedRoute";
-
+import Profile from "./pages/Profile";
 import AdminDashboard from "./pages/AdminDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
 import ProcurementDashboard from "./pages/ProcurementDashboard";
 import ManagerDashboard from "./pages/ManagerDashboard";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+const RoleLayout = () => <Outlet />;
 
 function App() {
   return (
-    <Router>
+    <AuthProvider>
       <ProcurementProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
+        <Router>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/vendor" element={<Navigate to="/vendor/dashboard" replace />} />
-          <Route path="/procurement" element={<Navigate to="/procurement/dashboard" replace />} />
-          <Route path="/manager" element={<Navigate to="/manager/dashboard" replace />} />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={["Admin"]}><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/admin/users" element={<Navigate to="/admin/dashboard?tab=users" replace />} />
-          <Route path="/admin/vendors" element={<Navigate to="/admin/dashboard?tab=vendors" replace />} />
-          <Route path="/admin/reports" element={<Navigate to="/admin/dashboard?tab=reports" replace />} />
-          <Route path="/admin/activity" element={<Navigate to="/admin/dashboard?tab=activity" replace />} />
+            {/* Admin Routes */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute allowedRoles={["Admin"]}>
+                  <RoleLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="users" element={<Navigate to="/admin/dashboard?tab=users" replace />} />
+              <Route path="vendors" element={<Navigate to="/admin/dashboard?tab=vendors" replace />} />
+              <Route path="reports" element={<Navigate to="/admin/dashboard?tab=reports" replace />} />
+              <Route path="activity" element={<Navigate to="/admin/dashboard?tab=activity" replace />} />
+              <Route path="*" element={<Navigate to="dashboard" replace />} />
+            </Route>
 
-          <Route path="/vendor/dashboard" element={<ProtectedRoute allowedRoles={["Vendor"]}><VendorDashboard /></ProtectedRoute>} />
-          <Route path="/vendor/rfqs" element={<Navigate to="/vendor/dashboard?tab=rfqs" replace />} />
-          <Route path="/vendor/quotations" element={<Navigate to="/vendor/dashboard?tab=bids" replace />} />
-          <Route path="/vendor/orders" element={<Navigate to="/vendor/dashboard?tab=orders" replace />} />
-          <Route path="/vendor/activity" element={<Navigate to="/vendor/dashboard?tab=activity" replace />} />
+            {/* Vendor Routes */}
+            <Route
+              path="/vendor"
+              element={
+                <ProtectedRoute allowedRoles={["Vendor"]}>
+                  <RoleLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<VendorDashboard />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="rfqs" element={<Navigate to="/vendor/dashboard?tab=rfqs" replace />} />
+              <Route path="quotations" element={<Navigate to="/vendor/dashboard?tab=bids" replace />} />
+              <Route path="orders" element={<Navigate to="/vendor/dashboard?tab=orders" replace />} />
+              <Route path="activity" element={<Navigate to="/vendor/dashboard?tab=activity" replace />} />
+              <Route path="*" element={<Navigate to="dashboard" replace />} />
+            </Route>
 
-          <Route path="/procurement/dashboard" element={<ProtectedRoute allowedRoles={["Procurement Officer"]}><ProcurementDashboard /></ProtectedRoute>} />
-          <Route path="/procurement/users" element={<Navigate to="/procurement/dashboard?tab=users" replace />} />
-          <Route path="/procurement/vendors" element={<Navigate to="/procurement/dashboard?tab=vendors" replace />} />
-          <Route path="/procurement/rfq" element={<Navigate to="/procurement/dashboard?tab=response" replace />} />
-          <Route path="/procurement/quotations" element={<Navigate to="/procurement/dashboard?tab=spend" replace />} />
-          <Route path="/procurement/approvals" element={<Navigate to="/procurement/dashboard?tab=overview" replace />} />
-          <Route path="/procurement/orders" element={<Navigate to="/procurement/dashboard?tab=overview" replace />} />
-          <Route path="/procurement/activity" element={<Navigate to="/procurement/dashboard?tab=overview" replace />} />
-          <Route path="/procurement/reports" element={<Navigate to="/procurement/dashboard?tab=overview" replace />} />
+            {/* Procurement Officer Routes */}
+            <Route
+              path="/procurement"
+              element={
+                <ProtectedRoute allowedRoles={["Procurement Officer"]}>
+                  <RoleLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<ProcurementDashboard />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="users" element={<Navigate to="/procurement/dashboard?tab=users" replace />} />
+              <Route path="vendors" element={<Navigate to="/procurement/dashboard?tab=vendors" replace />} />
+              <Route path="rfq" element={<Navigate to="/procurement/dashboard?tab=response" replace />} />
+              <Route path="quotations" element={<Navigate to="/procurement/dashboard?tab=spend" replace />} />
+              <Route path="approvals" element={<Navigate to="/procurement/dashboard?tab=overview" replace />} />
+              <Route path="orders" element={<Navigate to="/procurement/dashboard?tab=overview" replace />} />
+              <Route path="activity" element={<Navigate to="/procurement/dashboard?tab=overview" replace />} />
+              <Route path="reports" element={<Navigate to="/procurement/dashboard?tab=overview" replace />} />
+              <Route path="*" element={<Navigate to="dashboard" replace />} />
+            </Route>
 
-          <Route path="/manager/dashboard" element={<ProtectedRoute allowedRoles={["Manager"]}><ManagerDashboard /></ProtectedRoute>} />
-          <Route path="/manager/approvals" element={<Navigate to="/manager/dashboard?tab=approvals" replace />} />
-          <Route path="/manager/activity" element={<Navigate to="/manager/dashboard?tab=overview" replace />} />
-          <Route path="/manager/reports" element={<Navigate to="/manager/dashboard?tab=overview" replace />} />
+            {/* Manager Routes */}
+            <Route
+              path="/manager"
+              element={
+                <ProtectedRoute allowedRoles={["Manager"]}>
+                  <RoleLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<ManagerDashboard />} />
+              <Route path="profile" element={<Profile />} />
+              <Route path="approvals" element={<Navigate to="/manager/dashboard?tab=approvals" replace />} />
+              <Route path="activity" element={<Navigate to="/manager/dashboard?tab=overview" replace />} />
+              <Route path="reports" element={<Navigate to="/manager/dashboard?tab=overview" replace />} />
+              <Route path="*" element={<Navigate to="dashboard" replace />} />
+            </Route>
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
-        <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+          <ToastContainer position="top-right" autoClose={3000} hideProgressBar />
+        </Router>
       </ProcurementProvider>
-    </Router>
+    </AuthProvider>
   );
 }
 

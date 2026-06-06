@@ -45,6 +45,8 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
               ? profile.emails[0].value
               : null;
           const googleId = profile.id;
+          const profilePicture =
+            profile.photos && profile.photos[0] ? profile.photos[0].value : null;
 
           if (!email) {
             return done(new Error("No email found in Google profile"), null);
@@ -71,10 +73,13 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             [email],
           );
           if (res.rows.length > 0) {
-            // Update user to link Google ID
             const updatedUser = await db.query(
-              "UPDATE tbl_users SET google_id = $1 WHERE email = $2 RETURNING *",
-              [googleId, email],
+              `UPDATE tbl_users
+               SET google_id = $1,
+                   profile_picture = COALESCE(profile_picture, $2)
+               WHERE email = $3
+               RETURNING *`,
+              [googleId, profilePicture, email]
             );
             const refreshed = await db.query(
               `SELECT u.*, r.role_name

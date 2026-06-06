@@ -245,7 +245,7 @@ const forgotPassword = async (req, res) => {
 
     const token = crypto.randomBytes(32).toString("hex");
     const expiry = new Date();
-    expiry.setHours(expiry.getHours() + 1);
+    expiry.setMinutes(expiry.getMinutes() + 15);
 
     await db.query(
       "UPDATE tbl_users SET reset_token = $1, reset_token_expiry = $2 WHERE user_id = $3",
@@ -254,7 +254,7 @@ const forgotPassword = async (req, res) => {
 
     const resetLink = `${FRONTEND_URL}/reset-password?token=${token}`;
 
-    await sendResetEmail(user.email, user.full_name, resetLink, "1 hour");
+    await sendResetEmail(user.email, user.full_name, resetLink, "15 minutes");
 
     return res.json({
       message:
@@ -271,53 +271,49 @@ const forgotPassword = async (req, res) => {
   }
 };
 
+const performPasswordReset = async (token, password, confirmPassword) => {
+  if (!token || !password || !confirmPassword) {
+    return { status: 400, message: "Token, password, and confirm password are required." };
+  }
+
+  if (password !== confirmPassword) {
+    return { status: 400, message: "Passwords do not match." };
+  }
+
+  if (!isStrongPassword(password)) {
+    return {
+      status: 400,
+      message:
+        "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
+    };
+  }
+
+  const result = await db.query(
+    "SELECT user_id FROM tbl_users WHERE reset_token = $1 AND reset_token_expiry > NOW()",
+    [token]
+  );
+
+  if (result.rows.length === 0) {
+    return { status: 400, message: "Password reset token is invalid or has expired." };
+  }
+
+  const userId = result.rows[0].user_id;
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  await db.query(
+    "UPDATE tbl_users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2",
+    [passwordHash, userId]
+  );
+
+  return { status: 200, message: "Your password has been successfully reset. You can now log in." };
+};
+
 const resetPassword = async (req, res) => {
   const { token, password, confirmPassword } = req.body;
 
   try {
-    if (!token || !password || !confirmPassword) {
-      return res
-        .status(400)
-        .json({
-          message: "Token, password, and confirm password are required.",
-        });
-    }
-
-    if (password !== confirmPassword) {
-      return res.status(400).json({ message: "Passwords do not match." });
-    }
-
-    if (!isStrongPassword(password)) {
-      return res.status(400).json({
-        message:
-          "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
-      });
-    }
-
-    const result = await db.query(
-      "SELECT user_id FROM tbl_users WHERE reset_token = $1 AND reset_token_expiry > NOW()",
-      [token],
-    );
-
-    if (result.rows.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "Password reset token is invalid or has expired." });
-    }
-
-    const userId = result.rows[0].user_id;
-
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
-    await db.query(
-      "UPDATE tbl_users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2",
-      [passwordHash, userId],
-    );
-
-    return res.json({
-      message: "Your password has been successfully reset. You can now log in.",
-    });
+    const result = await performPasswordReset(token, password, confirmPassword);
+    return res.status(result.status).json({ message: result.message });
   } catch (error) {
     console.error("Reset Password Error:", error);
     return res
@@ -326,14 +322,27 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const resetPasswordByToken = async (req, res) => {
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+
+  try {
+    const result = await performPasswordReset(token, password, confirmPassword);
+    return res.status(result.status).json({ message: result.message });
+  } catch (error) {
+    console.error("Reset Password By Token Error:", error);
+    return res.status(500).json({ message: "An error occurred while resetting your password." });
+  }
+};
+
 const profile = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT u.user_id, u.full_name, u.email, u.role_id, u.google_id, u.profile_picture, u.created_at, u.is_verified, u.status, r.role_name
+      `SELECT u.user_id, u.full_name, u.email, u.role_id, u.google_id, u.profile_picture, u.password, u.created_at, u.is_verified, u.status, r.role_name
        FROM tbl_users u
        LEFT JOIN tbl_roles r ON u.role_id = r.role_id
        WHERE u.user_id = $1`,
-      [req.user.id],
+      [req.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -351,6 +360,7 @@ const profile = async (req, res) => {
       role: roleName,
       googleId: user.google_id,
       profilePicture: user.profile_picture,
+      hasPassword: Boolean(user.password),
       created_at: user.created_at,
       is_verified: user.is_verified,
       status: user.status,
@@ -446,7 +456,9 @@ module.exports = {
   login,
   forgotPassword,
   resetPassword,
+  resetPasswordByToken,
   profile,
   approveVendor,
   logout,
+  isStrongPassword,
 };
