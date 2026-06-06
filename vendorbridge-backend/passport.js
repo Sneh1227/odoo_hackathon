@@ -74,17 +74,12 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
           );
           if (res.rows.length > 0) {
             const updatedUser = await db.query(
-<<<<<<< HEAD
-              "UPDATE tbl_users SET google_id = $1 WHERE email = $2 RETURNING *",
-              [googleId, email],
-=======
               `UPDATE tbl_users
                SET google_id = $1,
                    profile_picture = COALESCE(profile_picture, $2)
                WHERE email = $3
                RETURNING *`,
               [googleId, profilePicture, email]
->>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
             );
             const refreshed = await db.query(
               `SELECT u.*, r.role_name

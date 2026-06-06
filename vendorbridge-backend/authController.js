@@ -72,22 +72,7 @@ const register = async (req, res) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-<<<<<<< HEAD
     const roleId = await getRoleIdByName(role);
-=======
-    // Ensure role exists in tbl_roles and get its id. If missing, create it.
-    const getRoleResult = await db.query("SELECT role_id FROM tbl_roles WHERE role_name = $1", [role]);
-    let roleId;
-    if (getRoleResult.rows.length > 0) {
-      roleId = getRoleResult.rows[0].role_id;
-    } else {
-      const insertRole = await db.query(
-        "INSERT INTO tbl_roles (role_name) VALUES ($1) RETURNING role_id",
-        [role]
-      );
-      roleId = insertRole.rows[0].role_id;
-    }
->>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
 
     const newUser = await db.query(
       "INSERT INTO tbl_users (full_name, email, password, role_id) VALUES ($1, $2, $3, $4) RETURNING user_id, full_name, email, role_id, created_at",
@@ -282,54 +267,8 @@ const resetPassword = async (req, res) => {
   const { token, password, confirmPassword } = req.body;
 
   try {
-<<<<<<< HEAD
-    if (!token || !password || !confirmPassword) {
-      return res
-        .status(400)
-        .json({
-          message: "Token, password, and confirm password are required.",
-        });
-    }
-
-    if (password !== confirmPassword) {
-      return res.status(400).json({ message: "Passwords do not match." });
-    }
-
-    if (!isStrongPassword(password)) {
-      return res.status(400).json({
-        message:
-          "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
-      });
-    }
-
-    const result = await db.query(
-      "SELECT user_id FROM tbl_users WHERE reset_token = $1 AND reset_token_expiry > NOW()",
-      [token],
-    );
-
-    if (result.rows.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "Password reset token is invalid or has expired." });
-    }
-
-    const userId = result.rows[0].user_id;
-
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
-    await db.query(
-      "UPDATE tbl_users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2",
-      [passwordHash, userId],
-    );
-
-    return res.json({
-      message: "Your password has been successfully reset. You can now log in.",
-    });
-=======
     const result = await performPasswordReset(token, password, confirmPassword);
     return res.status(result.status).json({ message: result.message });
->>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
   } catch (error) {
     console.error("Reset Password Error:", error);
     return res
@@ -354,16 +293,11 @@ const resetPasswordByToken = async (req, res) => {
 const profile = async (req, res) => {
   try {
     const result = await db.query(
-<<<<<<< HEAD
-      `SELECT u.user_id, u.full_name, u.email, u.role_id, u.google_id, u.profile_picture, u.created_at, r.role_name
+      `SELECT u.user_id, u.full_name, u.email, u.role_id, u.google_id, u.profile_picture, u.password, u.created_at, r.role_name
        FROM tbl_users u
        LEFT JOIN tbl_roles r ON u.role_id = r.role_id
        WHERE u.user_id = $1`,
-      [req.user.id],
-=======
-      "SELECT user_id, full_name, email, role_id, google_id, profile_picture, password, created_at FROM tbl_users WHERE user_id = $1",
       [req.user.id]
->>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
     );
 
     if (result.rows.length === 0) {
@@ -381,10 +315,7 @@ const profile = async (req, res) => {
       role: roleName,
       googleId: user.google_id,
       profilePicture: user.profile_picture,
-<<<<<<< HEAD
-=======
       hasPassword: Boolean(user.password),
->>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
       created_at: user.created_at,
     };
 

@@ -6,13 +6,9 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-<<<<<<< HEAD
     "seed:admin": "node scratch_seed_admin.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-=======
     "test": "echo \"Error: no test specified\" && exit 1",
     "migrate": "node db/migrate.js"
->>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
   },
   "keywords": [],
   "author": "",

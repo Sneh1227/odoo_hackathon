@@ -8,11 +8,7 @@ async function initDb() {
     host: "localhost",
     port: 5432,
     user: "postgres",
-<<<<<<< HEAD
     password: "om",
-=======
-    password: "Poorav1234",
->>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
     database: "postgres",
   });
 
@@ -43,11 +39,7 @@ async function initDb() {
     host: "localhost",
     port: 5432,
     user: "postgres",
-<<<<<<< HEAD
     password: "om",
-=======
-    password: "Poorav1234",
->>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
     database: "vendorbridge",
   });
 

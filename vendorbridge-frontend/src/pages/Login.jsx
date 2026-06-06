@@ -77,7 +77,7 @@ const Login = () => {
         console.error("[Login] Google callback error:", err);
         setApiError(
           err.response?.data?.message ||
-          "Google sign-in succeeded but session setup failed. Please try again."
+            "Google sign-in succeeded but session setup failed. Please try again."
         );
       } finally {
         setLoading(false);
@@ -111,13 +111,8 @@ const Login = () => {
   };
 
   const handleGoogleLogin = () => {
-<<<<<<< HEAD
-    const port = window.location.port || "5173";
-    window.location.href = `http://localhost:5000/api/auth/google?from_port=${port}`;
-=======
     const origin = encodeURIComponent(window.location.origin);
     window.location.href = `${getApiOrigin()}/api/auth/google?origin=${origin}`;
->>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
   };
 
   return (
