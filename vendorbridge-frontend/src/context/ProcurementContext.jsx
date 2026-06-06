@@ -1,83 +1,38 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { createPortalSeed } from "../data/portalSeed";
-
-const STORAGE_KEY = "vendorbridge.procurement.state.v1";
-
-const loadState = () => {
-  if (typeof window === "undefined") {
-    return createPortalSeed();
-  }
-
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return {
-        ...createPortalSeed(),
-        ...parsed,
-      };
-    }
-  } catch (error) {
-    console.warn("Failed to load portal state", error);
-  }
-
-  return createPortalSeed();
-};
-
-const formatDateTime = (value = new Date()) => new Date(value).toLocaleString([], {
-  dateStyle: "medium",
-  timeStyle: "short",
-});
-
-const formatDate = (value = new Date()) => new Date(value).toLocaleDateString([], {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-const addActivity = (activities, title, detail, tone = "info") => [
-  {
-    id: `ACT-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    time: formatDateTime(),
-    title,
-    detail,
-    tone,
-  },
-  ...activities,
-].slice(0, 40);
-
-const buildInvoice = (po, existingCount) => ({
-  id: `INV-${new Date().getFullYear()}-${String(existingCount + 313).padStart(3, "0")}`,
-  poId: po.id,
-  vendorName: po.vendorName,
-  subtotal: po.amount,
-  taxPercent: po.taxPercent,
-  total: Math.round(po.amount * (1 + po.taxPercent / 100)),
-  status: "Ready",
-  recipient: po.contactEmail,
-  emailed: false,
-});
-
-const buildPurchaseOrder = (quotation, existingCount) => ({
-  id: `PO-${new Date().getFullYear()}-${String(existingCount + 902).padStart(3, "0")}`,
-  rfqId: quotation.rfqId,
-  quotationId: quotation.id,
-  vendorName: quotation.vendorName,
-  amount: quotation.amount,
-  taxPercent: 18,
-  status: "Issued",
-  issuedAt: formatDate(),
-  contactEmail: quotation.vendorName.includes("Acme") ? "billing@acme.com" : "billing@vendor.com",
-});
+import api from "../services/api";
 
 const ProcurementContext = createContext(null);
 
 export const ProcurementProvider = ({ children }) => {
-  const [state, setState] = useState(loadState);
+  const [state, setState] = useState({
+    users: [],
+    vendors: [],
+    rfqs: [],
+    quotations: [],
+    approvals: [],
+    purchaseOrders: [],
+    invoices: [],
+    activities: [],
+    monthlyTrend: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  const fetchState = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      const res = await api.get("/procurement/state");
+      setState(res.data);
+    } catch (err) {
+      console.error("Failed to fetch procurement state from database:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
+    fetchState();
+  }, []);
 
   const summary = useMemo(() => {
     const pendingApprovals = state.approvals.filter((item) => item.state === "Pending").length;
@@ -98,8 +53,9 @@ export const ProcurementProvider = ({ children }) => {
     };
   }, [state]);
 
-  const upsertVendor = (vendor) => {
-    setState((prev) => {
+  const upsertVendor = async (vendor) => {
+    // Procurement Officer doesn't register vendors anymore. Just mock update for other roles.
+    setState(prev => {
       const nextVendor = {
         id: vendor.id || `VND-${Date.now()}`,
         name: vendor.name,
@@ -111,195 +67,98 @@ export const ProcurementProvider = ({ children }) => {
         verified: Boolean(vendor.verified),
         spend: Number(vendor.spend || 0),
       };
-
       const vendors = vendor.id
         ? prev.vendors.map((item) => (item.id === vendor.id ? nextVendor : item))
         : [nextVendor, ...prev.vendors];
-
-      return {
-        ...prev,
-        vendors,
-        activities: addActivity(prev.activities, "Vendor saved", `${nextVendor.name} was updated in the master list.`, "success"),
-      };
+      return { ...prev, vendors };
     });
   };
 
-  const toggleVendorStatus = (vendorId) => {
-    setState((prev) => {
-      const vendors = prev.vendors.map((item) =>
-        item.id === vendorId
-          ? { ...item, verified: !item.verified, status: item.verified ? "Pending Review" : "Verified" }
-          : item
-      );
-      const vendor = vendors.find((item) => item.id === vendorId);
-      return {
-        ...prev,
-        vendors,
-        activities: addActivity(prev.activities, "Vendor status updated", `${vendor?.name || vendorId} is now ${vendor?.status || "updated"}.`, "warning"),
-      };
-    });
+  const toggleVendorStatus = async (vendorId) => {
+    try {
+      await api.post(`/procurement/vendor/${vendorId}/toggle`);
+      await fetchState();
+    } catch (err) {
+      console.error("toggleVendorStatus error:", err);
+      throw err;
+    }
   };
 
-  const toggleUserStatus = (userId) => {
-    setState((prev) => {
-      const users = prev.users.map((item) =>
-        item.id === userId
-          ? { ...item, status: item.status === "Active" ? "Suspended" : "Active" }
-          : item
-      );
-      const user = users.find((item) => item.id === userId);
-
-      return {
-        ...prev,
-        users,
-        activities: addActivity(prev.activities, "User access updated", `${user?.name || userId} is now ${user?.status || "updated"}.`, "warning"),
-      };
-    });
+  const toggleUserStatus = async (userId) => {
+    try {
+      await api.post(`/procurement/user/${userId}/toggle`);
+      await fetchState();
+    } catch (err) {
+      console.error("toggleUserStatus error:", err);
+      throw err;
+    }
   };
 
-  const createRfq = (rfq) => {
-    setState((prev) => {
-      const newRfq = {
-        id: `RFQ-${new Date().getFullYear()}-${String(prev.rfqs.length + 200).padStart(3, "0")}`,
-        title: rfq.title,
-        description: rfq.description,
-        deadline: rfq.deadline,
-        vendorIds: rfq.vendorIds,
-        status: "Open",
-        requester: rfq.requester,
-        items: rfq.items,
-      };
-
-      return {
-        ...prev,
-        rfqs: [newRfq, ...prev.rfqs],
-        activities: addActivity(prev.activities, "RFQ created", `${newRfq.id} is now open for vendor bids.`, "info"),
-      };
-    });
+  const createRfq = async (rfq) => {
+    try {
+      await api.post("/procurement/rfq", rfq);
+      await fetchState();
+    } catch (err) {
+      console.error("createRfq error:", err);
+      throw err;
+    }
   };
 
-  const submitQuotation = (quotation) => {
-    setState((prev) => {
-      const quote = {
-        id: `QTN-${Date.now().toString().slice(-4)}`,
-        rfqId: quotation.rfqId,
-        vendorId: quotation.vendorId,
-        vendorName: quotation.vendorName,
-        amount: Number(quotation.amount),
-        deliveryDays: Number(quotation.deliveryDays),
-        notes: quotation.notes,
-        rating: Number(quotation.rating || 4.5),
-        editable: true,
-        submittedAt: new Date().toISOString(),
-      };
-
-      return {
-        ...prev,
-        quotations: [quote, ...prev.quotations],
-        activities: addActivity(prev.activities, "Quotation submitted", `${quote.vendorName} responded to ${quote.rfqId}.`, "success"),
-      };
-    });
+  const submitQuotation = async (quotation) => {
+    try {
+      await api.post("/procurement/quotation", quotation);
+      await fetchState();
+    } catch (err) {
+      console.error("submitQuotation error:", err);
+      throw err;
+    }
   };
 
-  const decideApproval = (approvalId, decision, remarks) => {
-    setState((prev) => {
-      const approvals = prev.approvals.map((item) =>
-        item.id === approvalId
-          ? {
-              ...item,
-              state: decision === "approved" ? "Approved" : "Rejected",
-              remarks: remarks || item.remarks,
-            }
-          : item
-      );
-
-      const approval = prev.approvals.find((item) => item.id === approvalId);
-      const quotation = prev.quotations.find((item) => item.id === approval?.quotationId);
-      const existingPo = prev.purchaseOrders.find((item) => item.quotationId === quotation?.id);
-      let purchaseOrders = prev.purchaseOrders;
-      let invoices = prev.invoices;
-
-      if (decision === "approved" && quotation && !existingPo) {
-        const po = buildPurchaseOrder(quotation, prev.purchaseOrders.length);
-        const invoice = buildInvoice(po, prev.invoices.length);
-        purchaseOrders = [po, ...prev.purchaseOrders];
-        invoices = [invoice, ...prev.invoices];
-      }
-
-      return {
-        ...prev,
-        approvals,
-        purchaseOrders,
-        invoices,
-        activities: addActivity(
-          prev.activities,
-          `Approval ${decision}`,
-          `${approval?.requestId || approvalId} was ${decision}.`,
-          decision === "approved" ? "success" : "danger"
-        ),
-      };
-    });
+  const decideApproval = async (approvalId, decision, remarks) => {
+    try {
+      await api.post(`/procurement/approval/${approvalId}/decide`, { decision, remarks });
+      await fetchState();
+    } catch (err) {
+      console.error("decideApproval error:", err);
+      throw err;
+    }
   };
 
-  const generatePurchaseOrderFromQuotation = (quotationId) => {
-    setState((prev) => {
-      const quotation = prev.quotations.find((item) => item.id === quotationId);
-      if (!quotation) {
-        return prev;
-      }
-
-      if (prev.purchaseOrders.some((item) => item.quotationId === quotationId)) {
-        return {
-          ...prev,
-          activities: addActivity(prev.activities, "PO already exists", `${quotationId} already has a purchase order.`, "warning"),
-        };
-      }
-
-      const po = buildPurchaseOrder(quotation, prev.purchaseOrders.length);
-      return {
-        ...prev,
-        purchaseOrders: [po, ...prev.purchaseOrders],
-        activities: addActivity(prev.activities, "Purchase order generated", `${po.id} was created from ${quotationId}.`, "success"),
-      };
-    });
+  const generatePurchaseOrderFromQuotation = async (quotationId) => {
+    try {
+      await api.post("/po", { quotationId });
+      await fetchState();
+    } catch (err) {
+      console.error("generatePurchaseOrderFromQuotation error:", err);
+      throw err;
+    }
   };
 
-  const generateInvoiceFromPo = (poId) => {
-    setState((prev) => {
-      const po = prev.purchaseOrders.find((item) => item.id === poId);
-      if (!po) {
-        return prev;
-      }
-
-      if (prev.invoices.some((item) => item.poId === poId)) {
-        return {
-          ...prev,
-          activities: addActivity(prev.activities, "Invoice already exists", `${poId} already has an invoice.`, "warning"),
-        };
-      }
-
-      const invoice = buildInvoice(po, prev.invoices.length);
-      return {
-        ...prev,
-        invoices: [invoice, ...prev.invoices],
-        activities: addActivity(prev.activities, "Invoice generated", `${invoice.id} was created for ${poId}.`, "success"),
-      };
-    });
+  const generateInvoiceFromPo = async (poId) => {
+    try {
+      await api.post("/invoice", { poId });
+      await fetchState();
+    } catch (err) {
+      console.error("generateInvoiceFromPo error:", err);
+      throw err;
+    }
   };
 
-  const markInvoiceEmailed = (invoiceId) => {
-    setState((prev) => ({
-      ...prev,
-      invoices: prev.invoices.map((item) =>
-        item.id === invoiceId ? { ...item, status: "Emailed", emailed: true } : item
-      ),
-      activities: addActivity(prev.activities, "Invoice emailed", `${invoiceId} was marked as emailed.`, "primary"),
-    }));
+  const markInvoiceEmailed = async (invoiceId) => {
+    try {
+      await api.post(`/procurement/invoice/${invoiceId}/email`);
+      await fetchState();
+    } catch (err) {
+      console.error("markInvoiceEmailed error:", err);
+      throw err;
+    }
   };
 
   const value = {
     state,
     summary,
+    loading,
+    fetchState,
     toggleUserStatus,
     upsertVendor,
     toggleVendorStatus,

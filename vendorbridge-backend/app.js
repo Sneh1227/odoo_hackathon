@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const passport = require("./passport");
 const authRoutes = require("./authRoutes");
+const procurementRoutes = require("./procurementRoutes");
 const { ensureDefaultRoles } = require("./services/roleService");
 const { seedAdminFromEnv } = require("./services/adminProvision");
 
@@ -32,6 +33,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/procurement", procurementRoutes);
 
 ensureDefaultRoles().catch((error) => {
   console.error("Failed to seed default roles:", error);

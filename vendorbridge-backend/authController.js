@@ -368,6 +368,29 @@ const approveVendor = async (req, res) => {
     );
     const updatedUser = updateResult.rows[0];
 
+    // Check if the vendor already exists in tbl_vendors by email
+    const vendorExists = await db.query(
+      "SELECT vendor_id FROM tbl_vendors WHERE email = $1",
+      [updatedUser.email]
+    );
+
+    if (vendorExists.rows.length === 0) {
+      await db.query(`
+        INSERT INTO tbl_vendors (vendor_name, contact_person, email, phone, gst_no, address, category, rating, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        updatedUser.full_name,
+        updatedUser.full_name,
+        updatedUser.email,
+        "",
+        "GST-PENDING",
+        "",
+        "General",
+        5.0,
+        "Verified"
+      ]);
+    }
+
     const updatedUserForResponse = {
       id: updatedUser.user_id,
       fullName: updatedUser.full_name,
