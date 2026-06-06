@@ -1,49 +1,10 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
-import { authService } from "../services/api";
+import DashboardNav from "../components/DashboardNav";
 
 const ProcurementDashboard = () => {
-  const navigate = useNavigate();
-  const userJson = localStorage.getItem("user");
-  const user = userJson ? JSON.parse(userJson) : { fullName: "Procurement Officer", role: "Procurement Officer" };
-
-  const handleLogout = async () => {
-    await authService.logout();
-    navigate("/login");
-  };
-
   return (
     <div className="container-fluid min-vh-100 bg-light p-0">
-      {/* Navbar */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-info shadow-sm px-4">
-        <span className="navbar-brand fw-bold fs-4 text-white">
-          <i className="bi bi-shuffle me-2"></i>VendorBridge ERP
-        </span>
-        <div className="ms-auto d-flex align-items-center gap-3">
-          <div className="text-white text-end d-none d-sm-block">
-            <div className="fw-semibold">{user.fullName}</div>
-            <div className="small opacity-75">{user.role} Portal</div>
-          </div>
-          {user.profilePicture ? (
-            <img
-              src={user.profilePicture}
-              alt="Profile"
-              className="rounded-circle border border-2 border-white"
-              style={{ width: "40px", height: "40px", objectFit: "cover" }}
-            />
-          ) : (
-            <div
-              className="rounded-circle bg-white text-info fw-bold d-flex align-items-center justify-content-center"
-              style={{ width: "40px", height: "40px" }}
-            >
-              {user.fullName ? user.fullName.charAt(0) : "P"}
-            </div>
-          )}
-          <button onClick={handleLogout} className="btn btn-outline-light btn-sm text-white">
-            <i className="bi bi-box-arrow-right me-1"></i>Logout
-          </button>
-        </div>
-      </nav>
+      <DashboardNav theme="info" />
 
       {/* Main Content */}
       <div className="container py-5">

@@ -72,7 +72,18 @@ const register = async (req, res) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    const roleId = roleMap[role] || 2; // Default to Vendor
+    // Ensure role exists in tbl_roles and get its id. If missing, create it.
+    const getRoleResult = await db.query("SELECT role_id FROM tbl_roles WHERE role_name = $1", [role]);
+    let roleId;
+    if (getRoleResult.rows.length > 0) {
+      roleId = getRoleResult.rows[0].role_id;
+    } else {
+      const insertRole = await db.query(
+        "INSERT INTO tbl_roles (role_name) VALUES ($1) RETURNING role_id",
+        [role]
+      );
+      roleId = insertRole.rows[0].role_id;
+    }
 
     const newUser = await db.query(
       "INSERT INTO tbl_users (full_name, email, password, role_id) VALUES ($1, $2, $3, $4) RETURNING user_id, full_name, email, role_id, created_at",
@@ -175,7 +186,7 @@ const forgotPassword = async (req, res) => {
 
     const token = crypto.randomBytes(32).toString("hex");
     const expiry = new Date();
-    expiry.setHours(expiry.getHours() + 1);
+    expiry.setMinutes(expiry.getMinutes() + 15);
 
     await db.query(
       "UPDATE tbl_users SET reset_token = $1, reset_token_expiry = $2 WHERE user_id = $3",
@@ -184,7 +195,7 @@ const forgotPassword = async (req, res) => {
 
     const resetLink = `${FRONTEND_URL}/reset-password?token=${token}`;
 
-    await sendResetEmail(user.email, user.full_name, resetLink, "1 hour");
+    await sendResetEmail(user.email, user.full_name, resetLink, "15 minutes");
 
     return res.json({
       message: "If an account with that email exists, a reset link has been sent.",
@@ -195,46 +206,64 @@ const forgotPassword = async (req, res) => {
   }
 };
 
+const performPasswordReset = async (token, password, confirmPassword) => {
+  if (!token || !password || !confirmPassword) {
+    return { status: 400, message: "Token, password, and confirm password are required." };
+  }
+
+  if (password !== confirmPassword) {
+    return { status: 400, message: "Passwords do not match." };
+  }
+
+  if (!isStrongPassword(password)) {
+    return {
+      status: 400,
+      message:
+        "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
+    };
+  }
+
+  const result = await db.query(
+    "SELECT user_id FROM tbl_users WHERE reset_token = $1 AND reset_token_expiry > NOW()",
+    [token]
+  );
+
+  if (result.rows.length === 0) {
+    return { status: 400, message: "Password reset token is invalid or has expired." };
+  }
+
+  const userId = result.rows[0].user_id;
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  await db.query(
+    "UPDATE tbl_users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2",
+    [passwordHash, userId]
+  );
+
+  return { status: 200, message: "Your password has been successfully reset. You can now log in." };
+};
+
 const resetPassword = async (req, res) => {
   const { token, password, confirmPassword } = req.body;
 
   try {
-    if (!token || !password || !confirmPassword) {
-      return res.status(400).json({ message: "Token, password, and confirm password are required." });
-    }
-
-    if (password !== confirmPassword) {
-      return res.status(400).json({ message: "Passwords do not match." });
-    }
-
-    if (!isStrongPassword(password)) {
-      return res.status(400).json({
-        message: "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
-      });
-    }
-
-    const result = await db.query(
-      "SELECT user_id FROM tbl_users WHERE reset_token = $1 AND reset_token_expiry > NOW()",
-      [token]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(400).json({ message: "Password reset token is invalid or has expired." });
-    }
-
-    const userId = result.rows[0].user_id;
-
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
-    await db.query(
-      "UPDATE tbl_users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2",
-      [passwordHash, userId]
-    );
-
-    return res.json({ message: "Your password has been successfully reset. You can now log in." });
+    const result = await performPasswordReset(token, password, confirmPassword);
+    return res.status(result.status).json({ message: result.message });
   } catch (error) {
     console.error("Reset Password Error:", error);
+    return res.status(500).json({ message: "An error occurred while resetting your password." });
+  }
+};
+
+const resetPasswordByToken = async (req, res) => {
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+
+  try {
+    const result = await performPasswordReset(token, password, confirmPassword);
+    return res.status(result.status).json({ message: result.message });
+  } catch (error) {
+    console.error("Reset Password By Token Error:", error);
     return res.status(500).json({ message: "An error occurred while resetting your password." });
   }
 };
@@ -242,7 +271,7 @@ const resetPassword = async (req, res) => {
 const profile = async (req, res) => {
   try {
     const result = await db.query(
-      "SELECT user_id, full_name, email, role_id, google_id, profile_picture, created_at FROM tbl_users WHERE user_id = $1",
+      "SELECT user_id, full_name, email, role_id, google_id, profile_picture, password, created_at FROM tbl_users WHERE user_id = $1",
       [req.user.id]
     );
 
@@ -260,7 +289,8 @@ const profile = async (req, res) => {
       role: roleName,
       googleId: user.google_id,
       profilePicture: user.profile_picture,
-      created_at: user.created_at
+      hasPassword: Boolean(user.password),
+      created_at: user.created_at,
     };
 
     return res.json({ user: userForResponse });
@@ -342,7 +372,9 @@ module.exports = {
   login,
   forgotPassword,
   resetPassword,
+  resetPasswordByToken,
   profile,
   approveVendor,
   logout,
+  isStrongPassword,
 };
