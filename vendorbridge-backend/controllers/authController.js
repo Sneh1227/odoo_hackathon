@@ -72,7 +72,18 @@ const register = async (req, res) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    const roleId = roleMap[role] || 2; // Default to Vendor
+    // Ensure role exists in tbl_roles and get its id. If missing, create it.
+    const getRoleResult = await db.query("SELECT role_id FROM tbl_roles WHERE role_name = $1", [role]);
+    let roleId;
+    if (getRoleResult.rows.length > 0) {
+      roleId = getRoleResult.rows[0].role_id;
+    } else {
+      const insertRole = await db.query(
+        "INSERT INTO tbl_roles (role_name) VALUES ($1) RETURNING role_id",
+        [role]
+      );
+      roleId = insertRole.rows[0].role_id;
+    }
 
     const newUser = await db.query(
       "INSERT INTO tbl_users (full_name, email, password, role_id) VALUES ($1, $2, $3, $4) RETURNING user_id, full_name, email, role_id, created_at",

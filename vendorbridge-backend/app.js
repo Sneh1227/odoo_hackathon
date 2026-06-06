@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const passport = require("./passport");
 const authRoutes = require("./authRoutes");
+const { ensureDefaultRoles } = require("./services/roleService");
+const { seedAdminFromEnv } = require("./services/adminProvision");
 
 require("dotenv").config();
 
@@ -30,6 +32,22 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+
+ensureDefaultRoles().catch((error) => {
+  console.error("Failed to seed default roles:", error);
+});
+
+seedAdminFromEnv()
+  .then((result) => {
+    if (result?.skipped) {
+      console.log("Admin seed skipped:", result.reason);
+    } else if (result?.created) {
+      console.log(`Admin account provisioned for ${result.email}`);
+    }
+  })
+  .catch((error) => {
+    console.error("Failed to provision admin account:", error);
+  });
 
 app.use((err, req, res, next) => {
   console.error("Unhandled Backend Error:", err);

@@ -3,27 +3,13 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const db = require("./db");
 const { sendResetEmail, sendWelcomeEmail, sendVendorApprovalEmail } = require("./emailService");
+const { getRoleIdByName, getRoleNameById } = require("./services/roleService");
 
 require("dotenv").config();
 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_vendorbridge_key_123!";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
-
-// Role mapping helper constants
-const roleMap = {
-  "Admin": 1,
-  "Vendor": 2,
-  "Procurement Officer": 3,
-  "Manager": 4
-};
-
-const roleIdMap = {
-  1: "Admin",
-  2: "Vendor",
-  3: "Procurement Officer",
-  4: "Manager"
-};
 
 const isStrongPassword = (pwd) => {
   const minLength = pwd.length >= 8;
@@ -72,7 +58,7 @@ const register = async (req, res) => {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
-    const roleId = roleMap[role] || 2; // Default to Vendor
+    const roleId = await getRoleIdByName(role);
 
     const newUser = await db.query(
       "INSERT INTO tbl_users (full_name, email, password, role_id) VALUES ($1, $2, $3, $4) RETURNING user_id, full_name, email, role_id, created_at",
@@ -83,7 +69,7 @@ const register = async (req, res) => {
       id: newUser.rows[0].user_id,
       fullName: newUser.rows[0].full_name,
       email: newUser.rows[0].email,
-      role: roleIdMap[newUser.rows[0].role_id] || "Vendor",
+      role,
       created_at: newUser.rows[0].created_at,
     };
 
@@ -111,7 +97,13 @@ const login = async (req, res) => {
       return res.status(400).json({ message: "Email and password are required." });
     }
 
-    const result = await db.query("SELECT * FROM tbl_users WHERE email = $1", [email]);
+    const result = await db.query(
+      `SELECT u.*, r.role_name
+       FROM tbl_users u
+       LEFT JOIN tbl_roles r ON u.role_id = r.role_id
+       WHERE u.email = $1`,
+      [email]
+    );
     if (result.rows.length === 0) {
       return res.status(401).json({ message: "Invalid email or password." });
     }
@@ -129,7 +121,7 @@ const login = async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
-    const roleName = roleIdMap[user.role_id] || "Vendor";
+    const roleName = user.role_name || (await getRoleNameById(user.role_id)) || "Vendor";
 
     const tokenPayload = {
       id: user.user_id,
@@ -164,7 +156,13 @@ const forgotPassword = async (req, res) => {
       return res.status(400).json({ message: "Email is required." });
     }
 
-    const result = await db.query("SELECT user_id, full_name, email FROM tbl_users WHERE email = $1", [email]);
+    const result = await db.query(
+      `SELECT u.user_id, u.full_name, u.email, u.role_id, r.role_name
+       FROM tbl_users u
+       LEFT JOIN tbl_roles r ON u.role_id = r.role_id
+       WHERE u.email = $1`,
+      [email]
+    );
     if (result.rows.length === 0) {
       return res.json({
         message: "If an account with that email exists, a reset link has been sent.",
@@ -242,7 +240,10 @@ const resetPassword = async (req, res) => {
 const profile = async (req, res) => {
   try {
     const result = await db.query(
-      "SELECT user_id, full_name, email, role_id, google_id, profile_picture, created_at FROM tbl_users WHERE user_id = $1",
+      `SELECT u.user_id, u.full_name, u.email, u.role_id, u.google_id, u.profile_picture, u.created_at, r.role_name
+       FROM tbl_users u
+       LEFT JOIN tbl_roles r ON u.role_id = r.role_id
+       WHERE u.user_id = $1`,
       [req.user.id]
     );
 
@@ -251,7 +252,7 @@ const profile = async (req, res) => {
     }
 
     const user = result.rows[0];
-    const roleName = roleIdMap[user.role_id] || "Vendor";
+    const roleName = user.role_name || (await getRoleNameById(user.role_id)) || "Vendor";
 
     const userForResponse = {
       id: user.user_id,
@@ -278,13 +279,19 @@ const approveVendor = async (req, res) => {
       return res.status(400).json({ message: "User ID is required." });
     }
 
-    const userResult = await db.query("SELECT user_id, full_name, email, role_id, is_verified FROM tbl_users WHERE user_id = $1", [id]);
+    const userResult = await db.query(
+      `SELECT u.user_id, u.full_name, u.email, u.role_id, u.is_verified, r.role_name
+       FROM tbl_users u
+       LEFT JOIN tbl_roles r ON u.role_id = r.role_id
+       WHERE u.user_id = $1`,
+      [id]
+    );
     if (userResult.rows.length === 0) {
       return res.status(404).json({ message: "User not found." });
     }
 
     const user = userResult.rows[0];
-    const roleName = roleIdMap[user.role_id] || "Vendor";
+    const roleName = user.role_name || (await getRoleNameById(user.role_id)) || "Vendor";
 
     if (roleName !== "Vendor") {
       return res.status(400).json({ message: "Only users with the 'Vendor' role can be approved." });
@@ -313,7 +320,7 @@ const approveVendor = async (req, res) => {
       id: updatedUser.user_id,
       fullName: updatedUser.full_name,
       email: updatedUser.email,
-      role: roleIdMap[updatedUser.role_id],
+      role: updatedUser.role_name || (await getRoleNameById(updatedUser.role_id)) || "Vendor",
       is_verified: updatedUser.is_verified,
       created_at: updatedUser.created_at
     };

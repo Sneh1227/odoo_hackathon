@@ -3,6 +3,8 @@ const cors = require("cors");
 const passport = require("./config/passport");
 const authRoutes = require("./routes/authRoutes");
 const db = require("./db");
+const { ensureDefaultRoles } = require("./services/roleService");
+const { seedAdminFromEnv } = require("./services/adminProvision");
 
 require("dotenv").config();
 
@@ -36,6 +38,22 @@ app.get("/api/health", (req, res) => {
 
 // Register routes
 app.use("/api/auth", authRoutes);
+
+ensureDefaultRoles().catch((error) => {
+  console.error("Failed to seed default roles:", error);
+});
+
+seedAdminFromEnv()
+  .then((result) => {
+    if (result?.skipped) {
+      console.log("Admin seed skipped:", result.reason);
+    } else if (result?.created) {
+      console.log(`Admin account provisioned for ${result.email}`);
+    }
+  })
+  .catch((error) => {
+    console.error("Failed to provision admin account:", error);
+  });
 
 // Error handling middleware
 app.use((err, req, res, next) => {

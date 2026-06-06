@@ -8,16 +8,18 @@ async function initDb() {
     host: "localhost",
     port: 5432,
     user: "postgres",
-    password: "sneh1227",
+    password: "om",
     database: "postgres",
   });
 
   try {
     await client.connect();
     console.log("Connected to default postgres database.");
-    
+
     // Check if vendorbridge database exists
-    const res = await client.query("SELECT 1 FROM pg_database WHERE datname = 'vendorbridge'");
+    const res = await client.query(
+      "SELECT 1 FROM pg_database WHERE datname = 'vendorbridge'",
+    );
     if (res.rows.length === 0) {
       console.log("Database 'vendorbridge' does not exist. Creating...");
       await client.query("CREATE DATABASE vendorbridge");
@@ -37,7 +39,7 @@ async function initDb() {
     host: "localhost",
     port: 5432,
     user: "postgres",
-    password: "sneh1227",
+    password: "om",
     database: "vendorbridge",
   });
 
@@ -47,7 +49,7 @@ async function initDb() {
 
     const schemaPath = path.join(__dirname, "db", "schema.sql");
     const schemaSql = fs.readFileSync(schemaPath, "utf8");
-    
+
     console.log("Running schema.sql...");
     await dbClient.query(schemaSql);
     console.log("schema.sql executed successfully. Tables initialized.");

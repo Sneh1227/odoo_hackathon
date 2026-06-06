@@ -37,13 +37,7 @@ router.get(
       }
 
       try {
-        const roleIdMap = {
-          1: "Admin",
-          2: "Vendor",
-          3: "Procurement Officer",
-          4: "Manager"
-        };
-        const roleName = roleIdMap[user.role_id] || "Vendor";
+        const roleName = user.role_name || "Vendor";
 
         const tokenPayload = {
           id: user.user_id,
