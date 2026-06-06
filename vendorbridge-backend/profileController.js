@@ -2,18 +2,11 @@ const bcrypt = require("bcrypt");
 const db = require("./db");
 const authController = require("./authController");
 
-const roleIdMap = {
-  1: "Admin",
-  2: "Vendor",
-  3: "Procurement Officer",
-  4: "Manager",
-};
-
 const formatUserResponse = (user) => ({
   id: user.user_id,
   fullName: user.full_name,
   email: user.email,
-  role: roleIdMap[user.role_id] || "Vendor",
+  role: user.role_name || "Vendor",
   googleId: user.google_id,
   profilePicture: user.profile_picture,
   hasPassword: Boolean(user.password),
@@ -23,7 +16,10 @@ const formatUserResponse = (user) => ({
 const getProfile = async (req, res) => {
   try {
     const result = await db.query(
-      "SELECT user_id, full_name, email, role_id, google_id, profile_picture, password, created_at FROM tbl_users WHERE user_id = $1",
+      `SELECT u.user_id, u.full_name, u.email, u.role_id, r.role_name, u.google_id, u.profile_picture, u.password, u.created_at 
+       FROM tbl_users u
+       LEFT JOIN tbl_roles r ON u.role_id = r.role_id
+       WHERE u.user_id = $1`,
       [req.user.id]
     );
 
@@ -57,14 +53,21 @@ const updateProfile = async (req, res) => {
       }
     }
 
-    const result = await db.query(
+    await db.query(
       `UPDATE tbl_users
        SET full_name = $1,
            profile_picture = COALESCE($2, profile_picture),
            updated_at = CURRENT_TIMESTAMP
-       WHERE user_id = $3
-       RETURNING user_id, full_name, email, role_id, google_id, profile_picture, password, created_at`,
+       WHERE user_id = $3`,
       [fullName.trim(), profilePicture || null, req.user.id]
+    );
+
+    const result = await db.query(
+      `SELECT u.user_id, u.full_name, u.email, u.role_id, r.role_name, u.google_id, u.profile_picture, u.password, u.created_at
+       FROM tbl_users u
+       LEFT JOIN tbl_roles r ON u.role_id = r.role_id
+       WHERE u.user_id = $1`,
+      [req.user.id]
     );
 
     if (result.rows.length === 0) {
