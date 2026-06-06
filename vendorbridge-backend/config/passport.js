@@ -5,16 +5,21 @@ const { sendWelcomeEmail } = require("./mailer");
 
 require("dotenv").config();
 
-// Since we are generating and issuing JWTs directly from the OAuth callback route
-// and keeping sessions disabled, passport.serializeUser and deserializeUser are not strictly needed,
-// but we define them to avoid passport warning logs.
+// Role mapping helper
+const roleIdMap = {
+  1: "Admin",
+  2: "Vendor",
+  3: "Procurement Officer",
+  4: "Manager"
+};
+
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+  done(null, user.user_id);
 });
 
 passport.deserializeUser(async (id, done) => {
   try {
-    const result = await db.query("SELECT * FROM users WHERE id = $1", [id]);
+    const result = await db.query("SELECT * FROM tbl_users WHERE user_id = $1", [id]);
     if (result.rows.length > 0) {
       done(null, result.rows[0]);
     } else {
@@ -45,26 +50,25 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             return done(new Error("No email found in Google profile"), null);
           }
 
-          // 1. Check if user already exists by google_id
-          let res = await db.query("SELECT * FROM users WHERE google_id = $1", [googleId]);
+          // Check if user already exists by google_id
+          let res = await db.query("SELECT * FROM tbl_users WHERE google_id = $1", [googleId]);
           if (res.rows.length > 0) {
             return done(null, res.rows[0]);
           }
 
-          // 2. Check if user already exists by email (link Google account if not linked)
-          res = await db.query("SELECT * FROM users WHERE email = $1", [email]);
+          // Check if user already exists by email
+          res = await db.query("SELECT * FROM tbl_users WHERE email = $1", [email]);
           if (res.rows.length > 0) {
-            // Update user to link Google ID and update profile picture if needed
             const updatedUser = await db.query(
-              "UPDATE users SET google_id = $1, profile_picture = COALESCE(profile_picture, $2), updated_at = NOW() WHERE email = $3 RETURNING *",
+              "UPDATE tbl_users SET google_id = $1, profile_picture = COALESCE(profile_picture, $2) WHERE email = $3 RETURNING *",
               [googleId, profilePicture, email]
             );
             return done(null, updatedUser.rows[0]);
           }
 
-          // 3. Register user with default role 'Vendor'
+          // Register user with default role 'Vendor' (role_id = 2)
           const newUser = await db.query(
-            "INSERT INTO users (full_name, email, google_id, profile_picture, role, is_verified) VALUES ($1, $2, $3, $4, 'Vendor', true) RETURNING *",
+            "INSERT INTO tbl_users (full_name, email, google_id, profile_picture, role_id, is_verified) VALUES ($1, $2, $3, $4, 2, true) RETURNING *",
             [fullName, email, googleId, profilePicture]
           );
 

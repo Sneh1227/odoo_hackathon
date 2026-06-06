@@ -26,16 +26,24 @@ router.get(
   passport.authenticate("google", { failureRedirect: `${FRONTEND_URL}/login?error=GoogleAuthFailed`, session: false }),
   (req, res) => {
     try {
+      const roleIdMap = {
+        1: "Admin",
+        2: "Vendor",
+        3: "Procurement Officer",
+        4: "Manager"
+      };
+      const roleName = roleIdMap[req.user.role_id] || "Vendor";
+
       const tokenPayload = {
-        id: req.user.id,
+        id: req.user.user_id,
         email: req.user.email,
-        role: req.user.role,
+        role: roleName,
       };
 
       const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
       const fullNameEncoded = encodeURIComponent(req.user.full_name || "");
-      const roleEncoded = encodeURIComponent(req.user.role || "Vendor");
+      const roleEncoded = encodeURIComponent(roleName);
       const profilePicEncoded = encodeURIComponent(req.user.profile_picture || "");
 
       return res.redirect(

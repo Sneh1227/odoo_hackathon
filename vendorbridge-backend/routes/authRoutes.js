@@ -32,10 +32,18 @@ router.get(
   (req, res) => {
     // Generate JWT token on successful callback
     try {
+      const roleIdMap = {
+        1: "Admin",
+        2: "Vendor",
+        3: "Procurement Officer",
+        4: "Manager"
+      };
+      const roleName = roleIdMap[req.user.role_id] || "Vendor";
+
       const tokenPayload = {
-        id: req.user.id,
+        id: req.user.user_id,
         email: req.user.email,
-        role: req.user.role,
+        role: roleName,
       };
 
       const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
@@ -43,7 +51,7 @@ router.get(
       // Redirect back to frontend login page with auth queries
       // Frontend will parse these parameters, store them, and redirect accordingly
       const fullNameEncoded = encodeURIComponent(req.user.full_name || "");
-      const roleEncoded = encodeURIComponent(req.user.role || "Vendor");
+      const roleEncoded = encodeURIComponent(roleName);
       const profilePicEncoded = encodeURIComponent(req.user.profile_picture || "");
 
       return res.redirect(
