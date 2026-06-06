@@ -259,22 +259,7 @@ const Signup = () => {
               {loading ? "Registering..." : "Create Account"}
             </button>
 
-            {/* Divider */}
-            <div className="d-flex align-items-center my-3">
-              <hr className="flex-grow-1" />
-              <span className="mx-2 text-muted small text-uppercase">or</span>
-              <hr className="flex-grow-1" />
-            </div>
 
-            {/* Google Signup */}
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center"
-            >
-              <i className="bi bi-google me-2"></i>
-              Continue with Google
-            </button>
 
             <p className="text-center mt-3 mb-0">
               Already have an account?{" "}

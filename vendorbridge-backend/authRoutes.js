@@ -23,36 +23,47 @@ router.get(
 
 router.get(
   "/google/callback",
-  passport.authenticate("google", { failureRedirect: `${FRONTEND_URL}/login?error=GoogleAuthFailed`, session: false }),
-  (req, res) => {
-    try {
-      const roleIdMap = {
-        1: "Admin",
-        2: "Vendor",
-        3: "Procurement Officer",
-        4: "Manager"
-      };
-      const roleName = roleIdMap[req.user.role_id] || "Vendor";
+  (req, res, next) => {
+    passport.authenticate("google", { session: false }, (err, user, info) => {
+      if (err) {
+        console.error("Google Auth Error:", err);
+        return res.redirect(`${FRONTEND_URL}/login?error=GoogleAuthFailed`);
+      }
+      if (!user) {
+        if (info && info.message === "UserNotRegistered") {
+          return res.redirect(`${FRONTEND_URL}/login?error=UserNotRegistered`);
+        }
+        return res.redirect(`${FRONTEND_URL}/login?error=GoogleAuthFailed`);
+      }
 
-      const tokenPayload = {
-        id: req.user.user_id,
-        email: req.user.email,
-        role: roleName,
-      };
+      try {
+        const roleIdMap = {
+          1: "Admin",
+          2: "Vendor",
+          3: "Procurement Officer",
+          4: "Manager"
+        };
+        const roleName = roleIdMap[user.role_id] || "Vendor";
 
-      const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        const tokenPayload = {
+          id: user.user_id,
+          email: user.email,
+          role: roleName,
+        };
 
-      const fullNameEncoded = encodeURIComponent(req.user.full_name || "");
-      const roleEncoded = encodeURIComponent(roleName);
-      const profilePicEncoded = encodeURIComponent(req.user.profile_picture || "");
+        const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 
-      return res.redirect(
-        `${FRONTEND_URL}/login?token=${token}&role=${roleEncoded}&fullName=${fullNameEncoded}&profilePicture=${profilePicEncoded}`
-      );
-    } catch (err) {
-      console.error("Google Auth Token Generation Error:", err);
-      return res.redirect(`${FRONTEND_URL}/login?error=TokenGenerationError`);
-    }
+        const fullNameEncoded = encodeURIComponent(user.full_name || "");
+        const roleEncoded = encodeURIComponent(roleName);
+
+        return res.redirect(
+          `${FRONTEND_URL}/login?token=${token}&role=${roleEncoded}&fullName=${fullNameEncoded}`
+        );
+      } catch (tokenErr) {
+        console.error("Google Auth Token Generation Error:", tokenErr);
+        return res.redirect(`${FRONTEND_URL}/login?error=TokenGenerationError`);
+      }
+    })(req, res, next);
   }
 );
 

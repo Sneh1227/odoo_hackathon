@@ -29,7 +29,11 @@ const Login = () => {
     const errorParam = searchParams.get("error");
 
     if (errorParam) {
-      setApiError("Authentication with Google failed. Please try again.");
+      if (errorParam === "UserNotRegistered") {
+        setApiError("Your email is not registered with us. Please register first.");
+      } else {
+        setApiError("Authentication with Google failed. Please try again.");
+      }
     } else if (token && role) {
       localStorage.setItem("token", token);
       localStorage.setItem(
