@@ -1,0 +1,49 @@
+.wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8f9fa; /* light neutral background */
+  padding: 20px;
+}
+
+.card {
+  max-width: 420px;
+  width: 100%;
+  border: none;
+  border-radius: 0.75rem;
+  background-color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.brandName {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  color: #0d6efd;
+}
+
+.heading {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  color: #333333;
+}
+
+.forgotLink {
+  font-size: 0.9rem;
+  color: #0d6efd;
+  text-decoration: none;
+}
+
+.forgotLink:hover {
+  text-decoration: underline;
+}
+
+.signUpLink {
+  font-weight: 500;
+  color: #0d6efd;
+  text-decoration: none;
+}
+
+.signUpLink:hover {
+  text-decoration: underline;
+}

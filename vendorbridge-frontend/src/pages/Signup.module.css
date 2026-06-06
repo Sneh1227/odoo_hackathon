@@ -1,0 +1,62 @@
+.wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8f9fa;
+  padding: 20px;
+}
+
+.card {
+  max-width: 480px;
+  width: 100%;
+  border: none;
+  border-radius: 0.75rem;
+  background-color: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.brandName {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  color: #0d6efd;
+}
+
+.heading {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  color: #333333;
+}
+
+.loginLink {
+  font-weight: 500;
+  color: #0d6efd;
+  text-decoration: none;
+}
+
+.loginLink:hover {
+  text-decoration: underline;
+}
+
+.strengthBar {
+  height: 6px;
+  background-color: #e9ecef;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.strength-0 {
+  background-color: #dc3545; /* danger */
+}
+.strength-1 {
+  background-color: #dc3545;
+}
+.strength-2 {
+  background-color: #ffc107; /* warning */
+}
+.strength-3 {
+  background-color: #0dcaf0; /* info */
+}
+.strength-4 {
+  background-color: #198754; /* success */
+}
