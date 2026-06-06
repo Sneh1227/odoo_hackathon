@@ -441,6 +441,62 @@ const approveVendor = async (req, res) => {
         },
       });
     }
+
+    const updateResult = await db.query(
+      "UPDATE tbl_users SET is_verified = true WHERE user_id = $1 RETURNING user_id, full_name, email, role_id, is_verified, created_at",
+      [id],
+    );
+    const updatedUser = updateResult.rows[0];
+
+    // Check if the vendor already exists in tbl_vendors by email
+    const vendorExists = await db.query(
+      "SELECT vendor_id FROM tbl_vendors WHERE email = $1",
+      [updatedUser.email]
+    );
+
+    if (vendorExists.rows.length === 0) {
+      await db.query(`
+        INSERT INTO tbl_vendors (vendor_name, contact_person, email, phone, gst_no, address, category, rating, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `, [
+        updatedUser.full_name,
+        updatedUser.full_name,
+        updatedUser.email,
+        "",
+        "GST-PENDING",
+        "",
+        "General",
+        5.0,
+        "Verified"
+      ]);
+    }
+
+    const updatedUserForResponse = {
+      id: updatedUser.user_id,
+      fullName: updatedUser.full_name,
+      email: updatedUser.email,
+      role:
+        updatedUser.role_name ||
+        (await getRoleNameById(updatedUser.role_id)) ||
+        "Vendor",
+      is_verified: updatedUser.is_verified,
+      created_at: updatedUser.created_at,
+    };
+
+    sendVendorApprovalEmail(
+      updatedUserForResponse.email,
+      updatedUserForResponse.fullName,
+    ).catch((emailErr) => {
+      console.error(
+        `[Vendor Approval Email Error] Failed to send email to ${updatedUserForResponse.email}:`,
+        emailErr.message,
+      );
+    });
+
+    return res.json({
+      message: "Vendor account approved successfully.",
+      user: updatedUserForResponse,
+    });
   } catch (error) {
     console.error("Vendor Verification Error:", error);
     return res.status(500).json({ message: "An error occurred during vendor verification." });
