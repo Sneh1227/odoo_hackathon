@@ -181,6 +181,136 @@ const dashboardController = {
       console.error("[Approval Action Error]:", error);
       return res.status(500).json({ success: false, message: "Internal server error processing approval decision." });
     }
+  },
+
+  getRfqDetails: async (req, res) => {
+    const { id } = req.params;
+    try {
+      const rfqRes = await db.query(
+        "SELECT rfq_id, rfq_no, title, description, deadline_date, status FROM tbl_rfq WHERE rfq_id = $1",
+        [id]
+      );
+      if (rfqRes.rows.length === 0) {
+        return res.status(404).json({ success: false, message: "RFQ not found." });
+      }
+
+      const itemsRes = await db.query(
+        "SELECT rfq_item_id, item_name, description, quantity, unit FROM tbl_rfq_items WHERE rfq_id = $1",
+        [id]
+      );
+
+      return res.json({
+        success: true,
+        rfq: rfqRes.rows[0],
+        items: itemsRes.rows
+      });
+    } catch (error) {
+      console.error("[Get RFQ Details API Error]:", error);
+      return res.status(500).json({ success: false, message: "Internal server error fetching RFQ details." });
+    }
+  },
+
+  createQuotation: async (req, res) => {
+    const { rfq_id, delivery_days, remarks, items } = req.body;
+    const email = req.user.email;
+
+    if (!rfq_id || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: "Invalid quotation data." });
+    }
+
+    try {
+      const vendorRes = await db.query("SELECT vendor_id FROM tbl_vendors WHERE email = $1", [email]);
+      if (vendorRes.rows.length === 0) {
+        return res.status(404).json({ success: false, message: "Vendor profile not found." });
+      }
+      const vendor_id = vendorRes.rows[0].vendor_id;
+
+      const rfqRes = await db.query("SELECT status FROM tbl_rfq WHERE rfq_id = $1", [rfq_id]);
+      if (rfqRes.rows.length === 0) {
+        return res.status(404).json({ success: false, message: "RFQ not found." });
+      }
+      if (rfqRes.rows[0].status !== "Open") {
+        return res.status(400).json({ success: false, message: "This RFQ is closed for submissions." });
+      }
+
+      const quotation_no = `QT-${Date.now().toString().slice(-6)}-${Math.floor(10 + Math.random() * 90)}`;
+
+      let total_amount = 0;
+      const parsedItems = [];
+
+      for (const item of items) {
+        const { rfq_item_id, unit_price } = item;
+        if (!rfq_item_id || !unit_price || isNaN(unit_price) || Number(unit_price) <= 0) {
+          return res.status(400).json({ success: false, message: "Each item must have a valid positive unit price." });
+        }
+
+        const rfqItemRes = await db.query(
+          "SELECT quantity FROM tbl_rfq_items WHERE rfq_item_id = $1 AND rfq_id = $2",
+          [rfq_item_id, rfq_id]
+        );
+        if (rfqItemRes.rows.length === 0) {
+          return res.status(400).json({ success: false, message: `Invalid RFQ item reference: ${rfq_item_id}` });
+        }
+        const quantity = rfqItemRes.rows[0].quantity;
+        const amount = Number(quantity) * Number(unit_price);
+        total_amount += amount;
+
+        parsedItems.push({
+          rfq_item_id,
+          unit_price: Number(unit_price),
+          quantity,
+          amount
+        });
+      }
+
+      const managerRes = await db.query(
+        `SELECT user_id FROM tbl_users 
+         WHERE role_id = (SELECT role_id FROM tbl_roles WHERE role_name = 'Manager' LIMIT 1) 
+         LIMIT 1`
+      );
+      if (managerRes.rows.length === 0) {
+        return res.status(500).json({ success: false, message: "No procurement manager available to assign approval to." });
+      }
+      const defaultManagerId = managerRes.rows[0].user_id;
+
+      await db.query("BEGIN");
+
+      const quoteRes = await db.query(
+        `INSERT INTO tbl_quotations (rfq_id, vendor_id, quotation_no, submission_date, delivery_days, total_amount, remarks, status)
+         VALUES ($1, $2, $3, NOW(), $4, $5, $6, 'Pending')
+         RETURNING quotation_id`,
+        [rfq_id, vendor_id, quotation_no, delivery_days || 7, total_amount, remarks || ""]
+      );
+      const quotation_id = quoteRes.rows[0].quotation_id;
+
+      for (const pItem of parsedItems) {
+        await db.query(
+          `INSERT INTO tbl_quotation_items (quotation_id, rfq_item_id, unit_price, quantity, amount)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [quotation_id, pItem.rfq_item_id, pItem.unit_price, pItem.quantity, pItem.amount]
+        );
+      }
+
+      await db.query(
+        `INSERT INTO tbl_approvals (quotation_id, approved_by, status, remarks)
+         VALUES ($1, $2, 'Pending', '')`,
+        [quotation_id, defaultManagerId]
+      );
+
+      await db.query("COMMIT");
+
+      return res.status(201).json({
+        success: true,
+        message: "Quotation submitted successfully.",
+        quotation_id,
+        quotation_no,
+        total_amount
+      });
+    } catch (error) {
+      await db.query("ROLLBACK");
+      console.error("[Create Quotation API Error]:", error);
+      return res.status(500).json({ success: false, message: "Internal server error submitting quotation." });
+    }
   }
 };
 

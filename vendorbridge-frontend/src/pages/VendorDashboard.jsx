@@ -16,6 +16,105 @@ const VendorDashboard = () => {
     tables: {}
   });
 
+  // Quotation Submission states
+  const [selectedRfq, setSelectedRfq] = useState(null);
+  const [rfqItems, setRfqItems] = useState([]);
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [deliveryDays, setDeliveryDays] = useState(7);
+  const [remarks, setRemarks] = useState("");
+  const [itemPrices, setItemPrices] = useState({});
+  const [submittingQuote, setSubmittingQuote] = useState(false);
+  const [quoteSuccessMsg, setQuoteSuccessMsg] = useState("");
+
+  const handleOpenQuoteModal = async (rfq) => {
+    try {
+      setSelectedRfq(rfq);
+      setDeliveryDays(7);
+      setRemarks("");
+      setItemPrices({});
+      setQuoteSuccessMsg("");
+      setShowQuoteModal(true);
+      
+      const res = await dashboardService.getRfqDetails(rfq.rfq_id);
+      if (res.success) {
+        setRfqItems(res.items);
+        const initialPrices = {};
+        res.items.forEach(item => {
+          initialPrices[item.rfq_item_id] = "";
+        });
+        setItemPrices(initialPrices);
+      } else {
+        alert(res.message || "Failed to load RFQ items.");
+        setShowQuoteModal(false);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load RFQ details.");
+      setShowQuoteModal(false);
+    }
+  };
+
+  const handlePriceChange = (itemId, val) => {
+    setItemPrices(prev => ({
+      ...prev,
+      [itemId]: val
+    }));
+  };
+
+  const calculateTotalBid = () => {
+    let total = 0;
+    rfqItems.forEach(item => {
+      const price = Number(itemPrices[item.rfq_item_id] || 0);
+      total += price * Number(item.quantity);
+    });
+    return total;
+  };
+
+  const handleSubmitQuotation = async (e) => {
+    e.preventDefault();
+    if (!selectedRfq) return;
+
+    const itemsPayload = [];
+    for (const item of rfqItems) {
+      const price = itemPrices[item.rfq_item_id];
+      if (!price || isNaN(price) || Number(price) <= 0) {
+        alert(`Please enter a valid unit price for ${item.item_name}`);
+        return;
+      }
+      itemsPayload.push({
+        rfq_item_id: item.rfq_item_id,
+        unit_price: Number(price)
+      });
+    }
+
+    try {
+      setSubmittingQuote(true);
+      const res = await dashboardService.submitQuotation({
+        rfq_id: selectedRfq.rfq_id,
+        delivery_days: Number(deliveryDays),
+        remarks: remarks,
+        items: itemsPayload
+      });
+
+      if (res.success) {
+        setQuoteSuccessMsg(`Quotation ${res.quotation_no} submitted successfully!`);
+        await fetchVendorDashboard();
+        setTimeout(() => {
+          setShowQuoteModal(false);
+          setSelectedRfq(null);
+          setRfqItems([]);
+        }, 3000);
+      } else {
+        alert(res.message || "Failed to submit quotation.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "An error occurred while submitting quotation.");
+    } finally {
+      setSubmittingQuote(false);
+    }
+  };
+
   const fetchVendorDashboard = async () => {
     try {
       setLoading(true);
@@ -137,12 +236,13 @@ const VendorDashboard = () => {
                     <th>Title</th>
                     <th>Deadline</th>
                     <th>Status</th>
+                    <th className="text-end pe-4">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!tables?.latestRfqs || tables.latestRfqs.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="text-center py-4 text-muted">No open RFQs circulating currently.</td>
+                      <td colSpan="5" className="text-center py-4 text-muted">No open RFQs circulating currently.</td>
                     </tr>
                   ) : (
                     tables.latestRfqs.map((rfq) => (
@@ -151,6 +251,14 @@ const VendorDashboard = () => {
                         <td>{rfq.title}</td>
                         <td>{new Date(rfq.deadline_date).toLocaleDateString()}</td>
                         <td><span className="badge bg-success-subtle text-success">Open</span></td>
+                        <td className="text-end pe-4">
+                          <button 
+                            className="btn btn-sm btn-primary py-0.5 px-2"
+                            onClick={() => handleOpenQuoteModal(rfq)}
+                          >
+                            <i className="bi bi-chat-left-quote me-1"></i>Quote
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -198,12 +306,13 @@ const VendorDashboard = () => {
                 <th>RFQ Description / Specifications</th>
                 <th>Deadline Date</th>
                 <th>Status</th>
+                <th className="text-end pe-4">Action</th>
               </tr>
             </thead>
             <tbody>
               {!tables?.latestRfqs || tables.latestRfqs.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="text-center py-4 text-muted">No RFQs found.</td>
+                  <td colSpan="6" className="text-center py-4 text-muted">No RFQs found.</td>
                 </tr>
               ) : (
                 tables.latestRfqs.map((rfq) => (
@@ -212,10 +321,18 @@ const VendorDashboard = () => {
                     <td className="fw-bold">{rfq.rfq_no}</td>
                     <td>
                       <strong>{rfq.title}</strong>
-                      <div className="text-muted small mt-1">{rfq.status}</div>
+                      <div className="text-muted small mt-1">{rfq.description || rfq.status}</div>
                     </td>
                     <td>{new Date(rfq.deadline_date).toLocaleDateString()}</td>
                     <td><span className="badge bg-success-subtle text-success">{rfq.status}</span></td>
+                    <td className="text-end pe-4">
+                      <button 
+                        className="btn btn-sm btn-primary py-1 px-3"
+                        onClick={() => handleOpenQuoteModal(rfq)}
+                      >
+                        <i className="bi bi-chat-left-quote me-1"></i>Submit Quote
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -456,9 +573,189 @@ const VendorDashboard = () => {
     );
   }
 
+  const renderQuoteModal = () => {
+    if (!selectedRfq) return null;
+    const totalBid = calculateTotalBid();
+
+    return (
+      <div 
+        className="modal fade show d-block" 
+        tabIndex="-1" 
+        role="dialog"
+        style={{ background: "rgba(15, 23, 42, 0.55)", backdropFilter: "blur(4px)", zIndex: 1050 }}
+      >
+        <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
+          <div className="modal-content border-0 shadow-lg bg-card rounded-3">
+            <div className="modal-header border-bottom bg-light py-3 px-4 rounded-top-3">
+              <h5 className="modal-title fw-bold text-body">
+                Submit Quotation for {selectedRfq.rfq_no}
+              </h5>
+              <button 
+                type="button" 
+                className="btn-close" 
+                onClick={() => { setShowQuoteModal(false); setSelectedRfq(null); }}
+                disabled={submittingQuote}
+              ></button>
+            </div>
+            <form onSubmit={handleSubmitQuotation}>
+              <div className="modal-body p-4" style={{ maxHeight: "70vh", overflowY: "auto" }}>
+                {quoteSuccessMsg ? (
+                  <div className="alert alert-success border-0 shadow-sm p-4 text-center rounded-3 my-3">
+                    <i className="bi bi-patch-check-fill text-success fs-1 mb-2 d-block"></i>
+                    <h5 className="fw-bold mb-2">Submission Successful</h5>
+                    <p className="m-0 text-muted">{quoteSuccessMsg}</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="card bg-light border-0 p-3 mb-4 rounded-3">
+                      <div className="row g-2">
+                        <div className="col-sm-6">
+                          <span className="small text-muted font-monospace d-block">RFQ Reference</span>
+                          <span className="fw-bold text-body">{selectedRfq.rfq_no}</span>
+                        </div>
+                        <div className="col-sm-6">
+                          <span className="small text-muted font-monospace d-block">RFQ Title</span>
+                          <span className="fw-semibold text-body">{selectedRfq.title}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <h6 className="fw-bold mb-3 text-body">Items Specifications & Pricing</h6>
+                    <div className="table-responsive mb-4 border rounded-3">
+                      <table className="table table-hover align-middle mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th className="ps-3">Item Name</th>
+                            <th>Qty Required</th>
+                            <th style={{ width: "160px" }}>Unit Price (INR)</th>
+                            <th className="pe-3 text-end" style={{ width: "160px" }}>Line Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rfqItems.length === 0 ? (
+                            <tr>
+                              <td colSpan="4" className="text-center py-4 text-muted">
+                                <span className="spinner-border spinner-border-sm me-2"></span>
+                                Loading item specifications...
+                              </td>
+                            </tr>
+                          ) : (
+                            rfqItems.map((item) => {
+                              const qty = Number(item.quantity);
+                              const price = Number(itemPrices[item.rfq_item_id] || 0);
+                              const lineTotal = qty * price;
+                              return (
+                                <tr key={item.rfq_item_id}>
+                                  <td className="ps-3">
+                                    <div className="fw-semibold text-body">{item.item_name}</div>
+                                    <div className="small text-muted">{item.description}</div>
+                                  </td>
+                                  <td>
+                                    <span className="fw-medium text-body">{qty}</span>{" "}
+                                    <span className="text-muted small">{item.unit || "Units"}</span>
+                                  </td>
+                                  <td>
+                                    <div className="input-group input-group-sm">
+                                      <span className="input-group-text bg-transparent text-muted">₹</span>
+                                      <input
+                                        type="number"
+                                        className="form-control form-control-sm"
+                                        min="0.01"
+                                        step="0.01"
+                                        required
+                                        placeholder="0.00"
+                                        value={itemPrices[item.rfq_item_id] || ""}
+                                        onChange={(e) => handlePriceChange(item.rfq_item_id, e.target.value)}
+                                        disabled={submittingQuote}
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="pe-3 text-end fw-bold text-body">
+                                    ₹ {lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                        {rfqItems.length > 0 && (
+                          <tfoot className="table-light font-monospace">
+                            <tr>
+                              <td colSpan="3" className="ps-3 fw-bold text-end text-body">Estimated Total Bid Amount:</td>
+                              <td className="pe-3 fw-bold text-end text-success fs-5">
+                                ₹ {totalBid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+
+                    <div className="row g-3">
+                      <div className="col-md-4">
+                        <label className="form-label small fw-bold text-muted text-uppercase font-monospace">Est. Delivery (Days)</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          min="1"
+                          required
+                          value={deliveryDays}
+                          onChange={(e) => setDeliveryDays(e.target.value)}
+                          disabled={submittingQuote}
+                        />
+                      </div>
+                      <div className="col-md-8">
+                        <label className="form-label small fw-bold text-muted text-uppercase font-monospace">Terms / Proposal Remarks</label>
+                        <textarea
+                          className="form-control"
+                          rows="2"
+                          placeholder="Specify material grades, freight details, payment terms..."
+                          value={remarks}
+                          onChange={(e) => setRemarks(e.target.value)}
+                          disabled={submittingQuote}
+                        ></textarea>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="modal-footer border-top px-4 py-3 bg-light rounded-bottom-3">
+                <button 
+                  type="button" 
+                  className="btn btn-outline-secondary" 
+                  onClick={() => { setShowQuoteModal(false); setSelectedRfq(null); }}
+                  disabled={submittingQuote}
+                >
+                  Cancel
+                </button>
+                {!quoteSuccessMsg && (
+                  <button 
+                    type="submit" 
+                    className="btn btn-success text-white px-4"
+                    disabled={submittingQuote || rfqItems.length === 0}
+                  >
+                    {submittingQuote ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Submitting...
+                      </>
+                    ) : (
+                      "Submit Quotation"
+                    )}
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <DashboardLayout role="Vendor" activeTab={tab}>
       {renderContent()}
+      {showQuoteModal && renderQuoteModal()}
       {!isVerified && renderLockScreen()}
     </DashboardLayout>
   );

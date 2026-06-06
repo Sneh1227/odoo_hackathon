@@ -162,6 +162,14 @@ export const dashboardService = {
   handleApproval: async (id, action, remarks) => {
     const response = await api.put(`/dashboard/approval/${id}`, { action, remarks });
     return response.data;
+  },
+  getRfqDetails: async (id) => {
+    const response = await api.get(`/dashboard/rfq/${id}`);
+    return response.data;
+  },
+  submitQuotation: async (data) => {
+    const response = await api.post("/dashboard/quotation", data);
+    return response.data;
   }
 };
 

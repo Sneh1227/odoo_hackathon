@@ -153,7 +153,8 @@ const AdminDashboard = () => {
       
       const matchStatus = statusFilter === "All" || 
         (statusFilter === "Verified" && u.is_verified) ||
-        (statusFilter === "Unverified" && !u.is_verified);
+        (statusFilter === "Unverified" && u.status === "Pending") ||
+        (statusFilter === "Declined" && u.status === "Declined");
 
       return matchSearch && matchStatus;
     });
@@ -433,7 +434,8 @@ const AdminDashboard = () => {
                 {tab === "users" && (
                   <>
                     <option value="Verified">Verified Vendors</option>
-                    <option value="Unverified">Unverified/Pending</option>
+                    <option value="Unverified">Pending Verification</option>
+                    <option value="Declined">Declined Vendors</option>
                   </>
                 )}
                 {tab === "rfqs" && (
@@ -488,30 +490,45 @@ const AdminDashboard = () => {
                       </td>
                       <td>
                         {u.role === "Vendor" ? (
-                          <span className={`badge ${u.is_verified ? "bg-success" : "bg-warning text-dark"}`}>
-                            {u.is_verified ? "Approved / Active" : "Pending Verification"}
-                          </span>
+                          u.is_verified ? (
+                            <span className="badge bg-success">Approved / Active</span>
+                          ) : u.status === "Declined" ? (
+                            <span className="badge bg-danger">Declined</span>
+                          ) : (
+                            <span className="badge bg-warning text-dark">Pending Verification</span>
+                          )
                         ) : (
                           <span className="text-muted small">N/A</span>
                         )}
                       </td>
                       <td className="font-monospace small">{new Date(u.created_at).toLocaleDateString()}</td>
                       <td className="text-end px-3 no-print">
-                        {u.role === "Vendor" && !u.is_verified ? (
-                          <div className="btn-group">
+                        {u.role === "Vendor" ? (
+                          u.status === "Pending" ? (
+                            <div className="btn-group">
+                              <button 
+                                className="btn btn-sm btn-success text-white py-0.5 px-2"
+                                onClick={() => handleActionClick(u, "Approve")}
+                              >
+                                Approve
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-danger text-white py-0.5 px-2"
+                                onClick={() => handleActionClick(u, "Decline")}
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          ) : u.status === "Declined" ? (
                             <button 
-                              className="btn btn-sm btn-success text-white py-0.5 px-2"
+                              className="btn btn-sm btn-outline-success py-0.5 px-2"
                               onClick={() => handleActionClick(u, "Approve")}
                             >
                               Approve
                             </button>
-                            <button 
-                              className="btn btn-sm btn-danger text-white py-0.5 px-2"
-                              onClick={() => handleActionClick(u, "Decline")}
-                            >
-                              Decline
-                            </button>
-                          </div>
+                          ) : (
+                            <span className="text-success small fw-medium"><i className="bi bi-shield-fill-check me-1"></i>Verified</span>
+                          )
                         ) : (
                           <span className="text-muted small font-monospace">-</span>
                         )}

@@ -53,4 +53,20 @@ router.put(
   dashboardController.handleApprovalAction
 );
 
+// 7. RFQ details with items for Vendor
+router.get(
+  "/rfq/:id",
+  authenticateToken,
+  authorizeRoles("Vendor"),
+  dashboardController.getRfqDetails
+);
+
+// 8. Create Quotation for Vendor
+router.post(
+  "/quotation",
+  authenticateToken,
+  authorizeRoles("Vendor"),
+  dashboardController.createQuotation
+);
+
 module.exports = router;
