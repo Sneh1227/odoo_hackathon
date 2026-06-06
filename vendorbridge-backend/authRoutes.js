@@ -46,6 +46,16 @@ const decodeOAuthState = (state) => {
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 
+<<<<<<< HEAD
+router.get(
+  "/google",
+  (req, res, next) => {
+    const fromPort = req.query.from_port || "";
+    passport.authenticate("google", {
+      scope: ["profile", "email"],
+      session: false,
+      state: fromPort,
+=======
 router.get("/google", (req, res, next) => {
   const origin = resolveFrontendOrigin(req);
   const state = encodeOAuthState(origin);
@@ -103,9 +113,54 @@ router.get(
         console.error("Google Auth Token Generation Error:", tokenErr);
         return res.redirect(`${redirectOrigin}/login?error=TokenGenerationError`);
       }
+>>>>>>> 17a1f6c285d6255b0e47764297a5293ce4f6e440
     })(req, res, next);
   }
 );
+
+router.get("/google/callback", (req, res, next) => {
+  passport.authenticate("google", { session: false }, (err, user, info) => {
+    const state = req.query.state || "";
+    const targetFrontendUrl = state && /^\d+$/.test(state)
+      ? `http://localhost:${state}`
+      : FRONTEND_URL;
+
+    if (err) {
+      console.error("Google Auth Error:", err);
+      return res.redirect(`${targetFrontendUrl}/login?error=GoogleAuthFailed`);
+    }
+    if (!user) {
+      if (info && info.message === "UserNotRegistered") {
+        return res.redirect(`${targetFrontendUrl}/login?error=UserNotRegistered`);
+      }
+      return res.redirect(`${targetFrontendUrl}/login?error=GoogleAuthFailed`);
+    }
+
+    try {
+      const roleName = user.role_name || "Vendor";
+
+      const tokenPayload = {
+        id: user.user_id,
+        email: user.email,
+        role: roleName,
+      };
+
+      const token = jwt.sign(tokenPayload, JWT_SECRET, {
+        expiresIn: JWT_EXPIRES_IN,
+      });
+
+      const fullNameEncoded = encodeURIComponent(user.full_name || "");
+      const roleEncoded = encodeURIComponent(roleName);
+
+      return res.redirect(
+        `${targetFrontendUrl}/login?token=${token}&role=${roleEncoded}&fullName=${fullNameEncoded}`,
+      );
+    } catch (tokenErr) {
+      console.error("Google Auth Token Generation Error:", tokenErr);
+      return res.redirect(`${targetFrontendUrl}/login?error=TokenGenerationError`);
+    }
+  })(req, res, next);
+});
 
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);
