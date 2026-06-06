@@ -6,6 +6,8 @@ const {
   sendResetEmail,
   sendWelcomeEmail,
   sendVendorApprovalEmail,
+  sendVendorDeclineEmail,
+  sendAdminVendorRegistrationNotification,
 } = require("./emailService");
 const { getRoleIdByName, getRoleNameById } = require("./services/roleService");
 
@@ -74,9 +76,16 @@ const register = async (req, res) => {
 
     const roleId = await getRoleIdByName(role);
 
+    let isVerified = true;
+    let userStatus = "Active";
+    if (role === "Vendor") {
+      isVerified = false;
+      userStatus = "Pending";
+    }
+
     const newUser = await db.query(
-      "INSERT INTO tbl_users (full_name, email, password, role_id) VALUES ($1, $2, $3, $4) RETURNING user_id, full_name, email, role_id, created_at",
-      [fullName, email, passwordHash, roleId],
+      "INSERT INTO tbl_users (full_name, email, password, role_id, is_verified, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING user_id, full_name, email, role_id, created_at",
+      [fullName, email, passwordHash, roleId, isVerified, userStatus],
     );
 
     const registeredUser = {
@@ -86,6 +95,38 @@ const register = async (req, res) => {
       role,
       created_at: newUser.rows[0].created_at,
     };
+
+    // If it's a vendor, create/update tbl_vendors and notify all admins
+    if (role === "Vendor") {
+      const existingVendor = await db.query("SELECT vendor_id FROM tbl_vendors WHERE email = $1", [email]);
+      if (existingVendor.rows.length > 0) {
+        await db.query("UPDATE tbl_vendors SET status = 'Pending', vendor_name = $1 WHERE email = $2", [fullName, email]);
+      } else {
+        await db.query("INSERT INTO tbl_vendors (vendor_name, email, status, rating) VALUES ($1, $2, 'Pending', 5.0)", [fullName, email]);
+      }
+
+      // Notify Admins
+      db.query(
+        "SELECT full_name, email FROM tbl_users WHERE role_id = $1",
+        [await getRoleIdByName("Admin")]
+      ).then((adminRes) => {
+        for (const admin of adminRes.rows) {
+          sendAdminVendorRegistrationNotification(
+            admin.email,
+            admin.full_name,
+            registeredUser.fullName,
+            registeredUser.email
+          ).catch((err) => {
+            console.error(
+              `[Admin Notification Email Error] Failed to send to ${admin.email}:`,
+              err.message
+            );
+          });
+        }
+      }).catch((err) => {
+        console.error("[Fetch Admins Error] Failed to retrieve admins for notification:", err.message);
+      });
+    }
 
     // Send welcome email asynchronously
     sendWelcomeEmail(registeredUser.email, registeredUser.fullName).catch(
@@ -98,7 +139,9 @@ const register = async (req, res) => {
     );
 
     return res.status(201).json({
-      message: "Registration successful. You can now log in.",
+      message: role === "Vendor" 
+        ? "Registration successful. Your vendor profile is pending admin approval."
+        : "Registration successful. You can now log in.",
       user: registeredUser,
     });
   } catch (error) {
@@ -166,6 +209,8 @@ const login = async (req, res) => {
         email: user.email,
         role: roleName,
         profilePicture: user.profile_picture,
+        is_verified: user.is_verified,
+        status: user.status,
       },
     });
   } catch (error) {
@@ -200,7 +245,7 @@ const forgotPassword = async (req, res) => {
 
     const token = crypto.randomBytes(32).toString("hex");
     const expiry = new Date();
-    expiry.setHours(expiry.getHours() + 1);
+    expiry.setMinutes(expiry.getMinutes() + 15);
 
     await db.query(
       "UPDATE tbl_users SET reset_token = $1, reset_token_expiry = $2 WHERE user_id = $3",
@@ -209,7 +254,7 @@ const forgotPassword = async (req, res) => {
 
     const resetLink = `${FRONTEND_URL}/reset-password?token=${token}`;
 
-    await sendResetEmail(user.email, user.full_name, resetLink, "1 hour");
+    await sendResetEmail(user.email, user.full_name, resetLink, "15 minutes");
 
     return res.json({
       message:
@@ -226,53 +271,49 @@ const forgotPassword = async (req, res) => {
   }
 };
 
+const performPasswordReset = async (token, password, confirmPassword) => {
+  if (!token || !password || !confirmPassword) {
+    return { status: 400, message: "Token, password, and confirm password are required." };
+  }
+
+  if (password !== confirmPassword) {
+    return { status: 400, message: "Passwords do not match." };
+  }
+
+  if (!isStrongPassword(password)) {
+    return {
+      status: 400,
+      message:
+        "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
+    };
+  }
+
+  const result = await db.query(
+    "SELECT user_id FROM tbl_users WHERE reset_token = $1 AND reset_token_expiry > NOW()",
+    [token]
+  );
+
+  if (result.rows.length === 0) {
+    return { status: 400, message: "Password reset token is invalid or has expired." };
+  }
+
+  const userId = result.rows[0].user_id;
+  const passwordHash = await bcrypt.hash(password, 10);
+
+  await db.query(
+    "UPDATE tbl_users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2",
+    [passwordHash, userId]
+  );
+
+  return { status: 200, message: "Your password has been successfully reset. You can now log in." };
+};
+
 const resetPassword = async (req, res) => {
   const { token, password, confirmPassword } = req.body;
 
   try {
-    if (!token || !password || !confirmPassword) {
-      return res
-        .status(400)
-        .json({
-          message: "Token, password, and confirm password are required.",
-        });
-    }
-
-    if (password !== confirmPassword) {
-      return res.status(400).json({ message: "Passwords do not match." });
-    }
-
-    if (!isStrongPassword(password)) {
-      return res.status(400).json({
-        message:
-          "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
-      });
-    }
-
-    const result = await db.query(
-      "SELECT user_id FROM tbl_users WHERE reset_token = $1 AND reset_token_expiry > NOW()",
-      [token],
-    );
-
-    if (result.rows.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "Password reset token is invalid or has expired." });
-    }
-
-    const userId = result.rows[0].user_id;
-
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
-
-    await db.query(
-      "UPDATE tbl_users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2",
-      [passwordHash, userId],
-    );
-
-    return res.json({
-      message: "Your password has been successfully reset. You can now log in.",
-    });
+    const result = await performPasswordReset(token, password, confirmPassword);
+    return res.status(result.status).json({ message: result.message });
   } catch (error) {
     console.error("Reset Password Error:", error);
     return res
@@ -281,14 +322,27 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const resetPasswordByToken = async (req, res) => {
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+
+  try {
+    const result = await performPasswordReset(token, password, confirmPassword);
+    return res.status(result.status).json({ message: result.message });
+  } catch (error) {
+    console.error("Reset Password By Token Error:", error);
+    return res.status(500).json({ message: "An error occurred while resetting your password." });
+  }
+};
+
 const profile = async (req, res) => {
   try {
     const result = await db.query(
-      `SELECT u.user_id, u.full_name, u.email, u.role_id, u.google_id, u.profile_picture, u.created_at, r.role_name
+      `SELECT u.user_id, u.full_name, u.email, u.role_id, u.google_id, u.profile_picture, u.password, u.created_at, u.is_verified, u.status, r.role_name
        FROM tbl_users u
        LEFT JOIN tbl_roles r ON u.role_id = r.role_id
        WHERE u.user_id = $1`,
-      [req.user.id],
+      [req.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -306,7 +360,10 @@ const profile = async (req, res) => {
       role: roleName,
       googleId: user.google_id,
       profilePicture: user.profile_picture,
+      hasPassword: Boolean(user.password),
       created_at: user.created_at,
+      is_verified: user.is_verified,
+      status: user.status,
     };
 
     return res.json({ user: userForResponse });
@@ -320,44 +377,67 @@ const profile = async (req, res) => {
 
 const approveVendor = async (req, res) => {
   const { id } = req.params;
+  const { action, remarks } = req.body; // action: 'Approve' or 'Decline'
 
   try {
     if (!id) {
       return res.status(400).json({ message: "User ID is required." });
     }
 
-    const userResult = await db.query(
-      `SELECT u.user_id, u.full_name, u.email, u.role_id, u.is_verified, r.role_name
-       FROM tbl_users u
-       LEFT JOIN tbl_roles r ON u.role_id = r.role_id
-       WHERE u.user_id = $1`,
-      [id],
-    );
+    if (action && !["Approve", "Decline"].includes(action)) {
+      return res.status(400).json({ message: "Invalid verification action. Must be 'Approve' or 'Decline'." });
+    }
+
+    const userResult = await db.query("SELECT user_id, full_name, email, role_id, is_verified FROM tbl_users WHERE user_id = $1", [id]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ message: "User not found." });
     }
 
     const user = userResult.rows[0];
-    const roleName =
-      user.role_name || (await getRoleNameById(user.role_id)) || "Vendor";
+    const roleName = (await getRoleNameById(user.role_id)) || "Vendor";
 
     if (roleName !== "Vendor") {
-      return res
-        .status(400)
-        .json({
-          message: "Only users with the 'Vendor' role can be approved.",
-        });
+      return res.status(400).json({ message: "Only users with the 'Vendor' role can be approved or declined." });
     }
 
-    if (user.is_verified) {
-      return res.status(200).json({
-        message: "Vendor account is already approved.",
+    const finalAction = action || "Approve";
+
+    if (finalAction === "Approve") {
+      await db.query("UPDATE tbl_users SET is_verified = true, status = 'Active' WHERE user_id = $1", [id]);
+      await db.query("UPDATE tbl_vendors SET status = 'Active' WHERE email = $1", [user.email]);
+
+      sendVendorApprovalEmail(user.email, user.full_name, remarks || "")
+        .catch((emailErr) => {
+          console.error(`[Vendor Approval Email Error] Failed to send email to ${user.email}:`, emailErr.message);
+        });
+
+      return res.json({
+        message: "Vendor account approved successfully.",
         user: {
           id: user.user_id,
           fullName: user.full_name,
           email: user.email,
           role: roleName,
-          is_verified: user.is_verified,
+          is_verified: true
+        },
+      });
+    } else {
+      await db.query("UPDATE tbl_users SET is_verified = false, status = 'Declined' WHERE user_id = $1", [id]);
+      await db.query("UPDATE tbl_vendors SET status = 'Declined' WHERE email = $1", [user.email]);
+
+      sendVendorDeclineEmail(user.email, user.full_name, remarks || "")
+        .catch((emailErr) => {
+          console.error(`[Vendor Decline Email Error] Failed to send email to ${user.email}:`, emailErr.message);
+        });
+
+      return res.json({
+        message: "Vendor account application declined.",
+        user: {
+          id: user.user_id,
+          fullName: user.full_name,
+          email: user.email,
+          role: roleName,
+          is_verified: false
         },
       });
     }
@@ -418,12 +498,8 @@ const approveVendor = async (req, res) => {
       user: updatedUserForResponse,
     });
   } catch (error) {
-    console.error("Approve Vendor Error:", error);
-    return res
-      .status(500)
-      .json({
-        message: "An error occurred while approving the vendor account.",
-      });
+    console.error("Vendor Verification Error:", error);
+    return res.status(500).json({ message: "An error occurred during vendor verification." });
   }
 };
 
@@ -436,7 +512,9 @@ module.exports = {
   login,
   forgotPassword,
   resetPassword,
+  resetPasswordByToken,
   profile,
   approveVendor,
   logout,
+  isStrongPassword,
 };

@@ -1,6 +1,15 @@
 import axios from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
+
+let onUnauthorized = null;
+
+export const setUnauthorizedHandler = (handler) => {
+  onUnauthorized = handler;
+};
+
+export const getApiOrigin = () => API_ORIGIN;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,31 +18,60 @@ const api = axios.create({
   },
 });
 
-// Request Interceptor: Automatically inject access token if it exists in local storage
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
     if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Optional, e.g., to handle token expiration (403/401) globally
+const isAuthFailure = (error) => {
+  const status = error.response?.status;
+  const message = (error.response?.data?.message || "").toLowerCase();
+  const requestUrl = error.config?.url || "";
+
+  if (status === 403) {
+    return true;
+  }
+
+  if (status === 401) {
+    if (requestUrl.includes("/profile/change-password")) {
+      return false;
+    }
+    return (
+      message.includes("token") ||
+      message.includes("expired") ||
+      message.includes("missing") ||
+      message.includes("unauthorized") ||
+      message.includes("access")
+    );
+  }
+
+  return false;
+};
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // If unauthorized/token expired, we can clear token and redirect to login if not already there
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      const isLoginOrSignup = window.location.pathname.includes("/login") || window.location.pathname.includes("/signup");
-      if (!isLoginOrSignup) {
+    if (error.response && isAuthFailure(error)) {
+      const isPublicAuthPage =
+        window.location.pathname.includes("/login") ||
+        window.location.pathname.includes("/signup") ||
+        window.location.pathname.includes("/forgot-password") ||
+        window.location.pathname.includes("/reset-password");
+
+      if (!isPublicAuthPage) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-        window.location.href = "/login?session_expired=true";
+        if (typeof onUnauthorized === "function") {
+          onUnauthorized();
+        } else {
+          window.location.href = "/login?session_expired=true";
+        }
       }
     }
     return Promise.reject(error);
@@ -71,6 +109,19 @@ export const authService = {
     return response.data;
   },
 
+  approveVendor: async (id, action, remarks) => {
+    const response = await api.put(`/auth/approve-vendor/${id}`, { action, remarks });
+    return response.data;
+  },
+
+  resetPasswordByToken: async (token, password, confirmPassword) => {
+    const response = await api.post(`/auth/reset-password/${token}`, {
+      password,
+      confirmPassword,
+    });
+    return response.data;
+  },
+
   getProfile: async () => {
     const response = await api.get("/auth/profile");
     return response.data;
@@ -84,6 +135,54 @@ export const authService = {
     }
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+  },
+};
+
+export const dashboardService = {
+  getAdminData: async () => {
+    const response = await api.get("/dashboard/admin");
+    return response.data;
+  },
+  getVendorData: async () => {
+    const response = await api.get("/dashboard/vendor");
+    return response.data;
+  },
+  getProcurementData: async () => {
+    const response = await api.get("/dashboard/procurement");
+    return response.data;
+  },
+  getManagerData: async () => {
+    const response = await api.get("/dashboard/manager");
+    return response.data;
+  },
+  getActivityLogs: async () => {
+    const response = await api.get("/dashboard/logs");
+    return response.data;
+  },
+  handleApproval: async (id, action, remarks) => {
+    const response = await api.put(`/dashboard/approval/${id}`, { action, remarks });
+    return response.data;
+  }
+};
+
+export const profileService = {
+  getProfile: async () => {
+    const response = await api.get("/profile");
+    return response.data;
+  },
+
+  updateProfile: async ({ fullName, profilePicture }) => {
+    const response = await api.put("/profile", { fullName, profilePicture });
+    return response.data;
+  },
+
+  changePassword: async ({ currentPassword, newPassword, confirmPassword }) => {
+    const response = await api.put("/profile/change-password", {
+      currentPassword,
+      newPassword,
+      confirmPassword,
+    });
+    return response.data;
   },
 };
 

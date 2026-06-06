@@ -14,4 +14,6 @@ module.exports = {
   // Expose newer methods as well for clean future migrations
   sendWelcomeEmail: emailService.sendWelcomeEmail,
   sendVendorApprovalEmail: emailService.sendVendorApprovalEmail,
+  sendVendorDeclineEmail: emailService.sendVendorDeclineEmail,
+  sendAdminVendorRegistrationNotification: emailService.sendAdminVendorRegistrationNotification,
 };

@@ -229,11 +229,17 @@ const getPasswordResetEmail = (userName, resetLink, expiryInfo = "1 hour") => {
 /**
  * Generates the Vendor Account Approval Email
  */
-const getVendorApprovalEmail = (userName, dashboardLink) => {
+const getVendorApprovalEmail = (userName, dashboardLink, remarks) => {
   const content = `
     <h2>Vendor Account Approved!</h2>
     <p>Hello ${userName},</p>
     <p>Great news! Your application to become a verified vendor on <strong>VendorBridge ERP</strong> has been reviewed and <strong>approved</strong> by our procurement panel.</p>
+    
+    <p><strong>Remarks from procurement administrator:</strong></p>
+    <blockquote style="border-left: 4px solid #10b981; padding-left: 16px; margin: 16px 0; color: #475569; font-style: italic; background-color: #f0fdf4; padding: 12px;">
+      ${remarks || "Your profile meets all our procurement credentials and vendor requirements."}
+    </blockquote>
+
     <p>Your account status has been updated to active, and you can now log in to review all open procurement requisitions, publish quotations, and communicate with purchase managers.</p>
     
     <div style="text-align: center;">
@@ -254,8 +260,68 @@ const getVendorApprovalEmail = (userName, dashboardLink) => {
   return baseLayout(content, "Congratulations! Your VendorBridge ERP account has been approved.");
 };
 
+/**
+ * Generates the Vendor Account Decline Email
+ */
+const getVendorDeclineEmail = (userName, remarks) => {
+  const content = `
+    <h2>Vendor Account Registration Declined</h2>
+    <p>Hello ${userName},</p>
+    <p>We thank you for your interest in partnering with us as a supplier. However, after reviewing your application profile, we regret to inform you that your request has been <strong>declined</strong> at this time.</p>
+    
+    <p><strong>Remarks from procurement administrator:</strong></p>
+    <blockquote style="border-left: 4px solid #ef4444; padding-left: 16px; margin: 16px 0; color: #475569; font-style: italic; background-color: #fef2f2; padding: 12px;">
+      ${remarks || "Application profile does not meet our minimum procurement guidelines."}
+    </blockquote>
+
+    <p>If you believe this is in error or you have corrected the missing profile details, you are welcome to submit a fresh registration form using our signup portal.</p>
+    
+    <hr class="divider" />
+  `;
+  return baseLayout(content, "VendorBridge ERP account registration update.");
+};
+
+/**
+ * Generates the Admin Notification Email for New Vendor Registration
+ */
+const getAdminNewVendorNotificationEmail = (adminName, vendorName, vendorEmail, dashboardLink) => {
+  const content = `
+    <h2>New Vendor Registration Request</h2>
+    <p>Hello ${adminName},</p>
+    <p>A new vendor has registered on <strong>VendorBridge ERP</strong> and is awaiting administrator verification.</p>
+    
+    <table style="width: 100%; margin: 16px 0; border-collapse: collapse; font-size: 14px;">
+      <tr>
+        <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 120px;">Vendor Name:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${vendorName}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">Email Address:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;">${vendorEmail}</td>
+      </tr>
+      <tr>
+        <td style="padding: 8px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">Status:</td>
+        <td style="padding: 8px; border-bottom: 1px solid #e2e8f0;"><span style="background-color: #fef3c7; color: #d97706; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 12px;">Pending Verification</span></td>
+      </tr>
+    </table>
+
+    <p>Please log in to the Admin Dashboard to review their details and either approve or decline their registration request.</p>
+    
+    <div style="text-align: center;">
+      <a href="${dashboardLink}" class="btn btn-primary">Go to Admin Dashboard</a>
+    </div>
+
+    <hr class="divider" />
+    <p style="font-size: 13px; color: #64748b;">If the button above does not work, copy and paste this URL into your browser:<br>
+    <a href="${dashboardLink}" style="color: #3b82f6; word-break: break-all;">${dashboardLink}</a></p>
+  `;
+  return baseLayout(content, "New vendor registered: " + vendorName + " is awaiting approval.");
+};
+
 module.exports = {
   getWelcomeEmail,
   getPasswordResetEmail,
   getVendorApprovalEmail,
+  getVendorDeclineEmail,
+  getAdminNewVendorNotificationEmail,
 };

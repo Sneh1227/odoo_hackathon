@@ -1,149 +1,297 @@
-import React from "react";
-import { useNavigate } from "react-router-dom";
-import { authService } from "../services/api";
+import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
+import { dashboardService } from "../services/api";
+import DashboardLayout from "../components/DashboardLayout";
+import { AreaChart, BarChart, PieChart } from "../components/DashboardCharts";
+import "bootstrap/dist/css/bootstrap.min.css";
 
 const ProcurementDashboard = () => {
-  const navigate = useNavigate();
-  const userJson = localStorage.getItem("user");
-  const user = userJson ? JSON.parse(userJson) : { fullName: "Procurement Officer", role: "Procurement Officer" };
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const tab = searchParams.get("tab") || "overview";
 
-  const handleLogout = async () => {
-    await authService.logout();
-    navigate("/login");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [data, setData] = useState({
+    summary: {},
+    analytics: {}
+  });
+
+  const fetchProcurementData = async () => {
+    try {
+      setLoading(true);
+      const res = await dashboardService.getProcurementData();
+      if (res.success) {
+        setData(res);
+        setError(null);
+      } else {
+        setError(res.message || "Failed to load procurement data.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Failed to fetch procurement metrics. Make sure backend is running.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div className="container-fluid min-vh-100 bg-light p-0">
-      {/* Navbar */}
-      <nav className="navbar navbar-expand-lg navbar-dark bg-info shadow-sm px-4">
-        <span className="navbar-brand fw-bold fs-4 text-white">
-          <i className="bi bi-shuffle me-2"></i>VendorBridge ERP
-        </span>
-        <div className="ms-auto d-flex align-items-center gap-3">
-          <div className="text-white text-end d-none d-sm-block">
-            <div className="fw-semibold">{user.fullName}</div>
-            <div className="small opacity-75">{user.role} Portal</div>
-          </div>
-          {user.profilePicture ? (
-            <img
-              src={user.profilePicture}
-              alt="Profile"
-              className="rounded-circle border border-2 border-white"
-              style={{ width: "40px", height: "40px", objectFit: "cover" }}
-            />
-          ) : (
-            <div
-              className="rounded-circle bg-white text-info fw-bold d-flex align-items-center justify-content-center"
-              style={{ width: "40px", height: "40px" }}
-            >
-              {user.fullName ? user.fullName.charAt(0) : "P"}
-            </div>
-          )}
-          <button onClick={handleLogout} className="btn btn-outline-light btn-sm text-white">
-            <i className="bi bi-box-arrow-right me-1"></i>Logout
-          </button>
-        </div>
-      </nav>
+  useEffect(() => {
+    fetchProcurementData();
+  }, [tab]);
 
-      {/* Main Content */}
-      <div className="container py-5">
-        <div className="row mb-4">
-          <div className="col">
-            <h2 className="fw-bold text-dark mb-1">Procurement Officer Dashboard</h2>
-            <p className="text-muted">Initiate Requests for Quotations, compare bids, generate invoices, and dispatch Purchase Orders.</p>
+  const { summary, analytics } = data;
+
+  const renderStats = () => (
+    <div className="row g-4 mb-4">
+      <div className="col-md-3 col-sm-6">
+        <div className="card border-0 shadow-sm p-4 bg-card d-flex flex-row align-items-center gap-3">
+          <div className="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style={{ width: "56px", height: "56px" }}>
+            <i className="bi bi-file-earmark-text fs-3"></i>
+          </div>
+          <div>
+            <div className="text-muted small">Total RFQs</div>
+            <h3 className="fw-bold m-0">{summary.totalRfqs || 0}</h3>
           </div>
         </div>
-
-        {/* Actions Grid */}
-        <div className="row g-4 mb-5">
-          <div className="col-md-3">
-            <div className="card border-0 shadow-sm p-4 bg-white text-center">
-              <div className="rounded-circle bg-info-subtle text-info d-flex align-items-center justify-content-center mx-auto mb-3" style={{ width: "50px", height: "50px" }}>
-                <i className="bi bi-plus-circle fs-4"></i>
-              </div>
-              <h6 className="fw-bold">Create RFQ</h6>
-              <p className="text-muted small">Draft new procurement requests.</p>
-              <button className="btn btn-info btn-sm text-white mt-2">New RFQ</button>
-            </div>
+      </div>
+      <div className="col-md-3 col-sm-6">
+        <div className="card border-0 shadow-sm p-4 bg-card d-flex flex-row align-items-center gap-3">
+          <div className="rounded-circle bg-warning-subtle text-warning d-flex align-items-center justify-content-center" style={{ width: "56px", height: "56px" }}>
+            <i className="bi bi-folder2-open fs-3"></i>
           </div>
-
-          <div className="col-md-3">
-            <div className="card border-0 shadow-sm p-4 bg-white text-center">
-              <div className="rounded-circle bg-success-subtle text-success d-flex align-items-center justify-content-center mx-auto mb-3" style={{ width: "50px", height: "50px" }}>
-                <i className="bi bi-bar-chart-steps fs-4"></i>
-              </div>
-              <h6 className="fw-bold">Compare Quotes</h6>
-              <p className="text-muted small">Evaluate bidding structures.</p>
-              <button className="btn btn-success btn-sm mt-2">Compare</button>
-            </div>
-          </div>
-
-          <div className="col-md-3">
-            <div className="card border-0 shadow-sm p-4 bg-white text-center">
-              <div className="rounded-circle bg-warning-subtle text-warning d-flex align-items-center justify-content-center mx-auto mb-3" style={{ width: "50px", height: "50px" }}>
-                <i className="bi bi-receipt fs-4"></i>
-              </div>
-              <h6 className="fw-bold">Generate PO</h6>
-              <p className="text-muted small">Authorize Purchase Orders.</p>
-              <button className="btn btn-warning btn-sm text-dark mt-2">Generate</button>
-            </div>
-          </div>
-
-          <div className="col-md-3">
-            <div className="card border-0 shadow-sm p-4 bg-white text-center">
-              <div className="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center mx-auto mb-3" style={{ width: "50px", height: "50px" }}>
-                <i className="bi bi-file-earmark-diff fs-4"></i>
-              </div>
-              <h6 className="fw-bold">Invoices</h6>
-              <p className="text-muted small">Manage incoming billing records.</p>
-              <button className="btn btn-primary btn-sm mt-2">Review Invoices</button>
-            </div>
+          <div>
+            <div className="text-muted small">Open RFQs</div>
+            <h3 className="fw-bold m-0">{summary.openRfqs || 0}</h3>
           </div>
         </div>
-
-        {/* Workload overview */}
-        <div className="row">
-          <div className="col-md-12">
-            <div className="card border-0 shadow-sm">
-              <div className="card-header bg-white border-0 py-3">
-                <h5 className="fw-bold m-0">Procurement Activity Queue</h5>
-              </div>
-              <div className="card-body p-0">
-                <div className="table-responsive">
-                  <table className="table table-hover align-middle mb-0">
-                    <thead className="table-light">
-                      <tr>
-                        <th className="px-4">Doc ID</th>
-                        <th>Workflow Stage</th>
-                        <th>Associated Vendor</th>
-                        <th>Estimate Value</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="px-4 fw-semibold">RFQ-2026-104</td>
-                        <td><span className="badge bg-warning text-dark">Quotations Pending</span></td>
-                        <td>Multiple (3 Invitations)</td>
-                        <td>$45,000</td>
-                        <td><button className="btn btn-sm btn-outline-info">View Bids</button></td>
-                      </tr>
-                      <tr>
-                        <td className="px-4 fw-semibold">PO-2026-894</td>
-                        <td><span className="badge bg-success-subtle text-success">Approved by Manager</span></td>
-                        <td>Acme Corporation</td>
-                        <td>$12,500</td>
-                        <td><button className="btn btn-sm btn-outline-info">Dispatch PDF</button></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+      </div>
+      <div className="col-md-3 col-sm-6">
+        <div className="card border-0 shadow-sm p-4 bg-card d-flex flex-row align-items-center gap-3">
+          <div className="rounded-circle bg-success-subtle text-success d-flex align-items-center justify-content-center" style={{ width: "56px", height: "56px" }}>
+            <i className="bi bi-chat-left-quote fs-3"></i>
+          </div>
+          <div>
+            <div className="text-muted small">Quotes Received</div>
+            <h3 className="fw-bold m-0">{summary.quotesReceived || 0}</h3>
+          </div>
+        </div>
+      </div>
+      <div className="col-md-3 col-sm-6">
+        <div className="card border-0 shadow-sm p-4 bg-card d-flex flex-row align-items-center gap-3">
+          <div className="rounded-circle bg-danger-subtle text-danger d-flex align-items-center justify-content-center" style={{ width: "56px", height: "56px" }}>
+            <i className="bi bi-clock-history fs-3"></i>
+          </div>
+          <div>
+            <div className="text-muted small">Avg Turnaround</div>
+            <h3 className="fw-bold m-0">{analytics.avgTurnaroundDays ? `${analytics.avgTurnaroundDays} days` : "0 days"}</h3>
           </div>
         </div>
       </div>
     </div>
+  );
+
+  const renderOverview = () => {
+    // Category Spend Arc formatting
+    const spendChartData = analytics.spendByCategory?.map((c) => ({
+      name: c.category || "Unassigned",
+      value: c.total_spend || 0
+    })) || [];
+
+    // Vendor response rate labels/values
+    const responseLabels = analytics.rfqResponseRate?.map((r) => r.rfq_no) || [];
+    const responseValues = analytics.rfqResponseRate?.map((r) => r.response_count) || [];
+
+    return (
+      <div className="row g-4">
+        <div className="col-12">
+          {renderStats()}
+        </div>
+
+        {/* Spend distribution and RFQ Response rates */}
+        <div className="col-md-6">
+          <div className="card border-0 shadow-sm bg-card p-4">
+            <h5 className="fw-bold mb-3">Spend Category Distribution</h5>
+            <div style={{ height: "300px" }}>
+              <PieChart data={spendChartData} />
+            </div>
+          </div>
+        </div>
+
+        <div className="col-md-6">
+          <div className="card border-0 shadow-sm bg-card p-4">
+            <h5 className="fw-bold mb-3">RFQ Response Rates</h5>
+            <div style={{ height: "300px" }}>
+              <BarChart labels={responseLabels} data={responseValues} title="Quotation Responses" />
+            </div>
+          </div>
+        </div>
+
+        {/* Top Vendors list */}
+        <div className="col-lg-8">
+          <div className="card border-0 shadow-sm bg-card mb-4">
+            <div className="card-header bg-transparent border-0 py-3">
+              <h5 className="fw-bold m-0">Top Active Vendors by Performance</h5>
+            </div>
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th className="px-4">Vendor Name</th>
+                      <th>Core Category</th>
+                      <th>Quality Rating</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!analytics.vendorPerformance || analytics.vendorPerformance.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="text-center py-4 text-muted">No vendors registered in the system.</td>
+                      </tr>
+                    ) : (
+                      analytics.vendorPerformance.map((v) => (
+                        <tr key={v.vendor_id}>
+                          <td className="px-4 fw-semibold">{v.vendor_name}</td>
+                          <td>{v.category || "General Procurement"}</td>
+                          <td>
+                            <span className="text-warning"><i className="bi bi-star-fill me-1"></i>{parseFloat(v.rating).toFixed(1)}</span>
+                          </td>
+                          <td>
+                            <span className={`badge ${v.status === 'Active' ? 'bg-success' : 'bg-warning text-dark'}`}>{v.status}</span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-lg-4">
+          <div className="card border-0 shadow-sm bg-card p-4">
+            <h5 className="fw-bold mb-3">Manager Approval Velocity</h5>
+            <div className="alert bg-light border text-start small mb-0 font-monospace py-3 px-3">
+              <strong>Pending approvals:</strong> {summary.pendingApprovals || 0} <br />
+              <strong>POs generated:</strong> {summary.posGenerated || 0} <br />
+              <strong>Transact rate:</strong> {summary.posGenerated ? `${((summary.posGenerated / summary.totalRfqs) * 100).toFixed(0)}%` : "0%"}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderVendors = () => (
+    <div className="card border-0 shadow-sm bg-card">
+      <div className="card-header bg-transparent border-0 py-3">
+        <h5 className="fw-bold m-0">Vendor Directory & Profiles</h5>
+      </div>
+      <div className="card-body p-0">
+        <div className="table-responsive">
+          <table className="table table-hover align-middle mb-0">
+            <thead className="table-light">
+              <tr>
+                <th className="px-4">Vendor ID</th>
+                <th>Vendor Name</th>
+                <th>Category</th>
+                <th>Rating</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!analytics.vendorPerformance || analytics.vendorPerformance.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-4 text-muted">No vendors found.</td>
+                </tr>
+              ) : (
+                analytics.vendorPerformance.map((v) => (
+                  <tr key={v.vendor_id}>
+                    <td className="px-4 font-monospace">VND-{v.vendor_id}</td>
+                    <td className="fw-bold">{v.vendor_name}</td>
+                    <td>{v.category || "General"}</td>
+                    <td className="text-warning"><i className="bi bi-star-fill me-1"></i>{parseFloat(v.rating).toFixed(1)}</td>
+                    <td><span className={`badge ${v.status === 'Active' ? 'bg-success' : 'bg-warning text-dark'}`}>{v.status}</span></td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderResponseMatrix = () => {
+    const responseLabels = analytics.rfqResponseRate?.map((r) => r.title) || [];
+    const responseValues = analytics.rfqResponseRate?.map((r) => r.response_count) || [];
+    return (
+      <div className="card border-0 shadow-sm bg-card p-4">
+        <h5 className="fw-bold mb-4">RFQ Quotation Response Analysis</h5>
+        <div style={{ height: "400px" }}>
+          <BarChart labels={responseLabels} data={responseValues} title="Response Count per RFQ Requisition" />
+        </div>
+      </div>
+    );
+  };
+
+  const renderSpendDistribution = () => {
+    const spendChartData = analytics.spendByCategory?.map((c) => ({
+      name: c.category || "General",
+      value: c.total_spend || 0
+    })) || [];
+    return (
+      <div className="card border-0 shadow-sm bg-card p-4">
+        <h5 className="fw-bold mb-4">Requisition Spend Breakdown</h5>
+        <div style={{ height: "400px" }}>
+          <PieChart data={spendChartData} />
+        </div>
+      </div>
+    );
+  };
+
+  const renderContent = () => {
+    switch (tab) {
+      case "vendors":
+        return renderVendors();
+      case "response":
+        return renderResponseMatrix();
+      case "spend":
+        return renderSpendDistribution();
+      default:
+        return renderOverview();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="d-flex min-vh-100 align-items-center justify-content-center">
+        <div className="spinner-border text-info" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container py-5 text-center">
+        <div className="alert alert-danger max-width-md mx-auto" style={{ maxWidth: "600px" }}>
+          <h5 className="fw-bold">Connection Failed</h5>
+          <p className="m-0">{error}</p>
+          <button className="btn btn-info btn-sm mt-3" onClick={fetchProcurementData}>
+            Retry Request
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <DashboardLayout role="Procurement Officer" activeTab={tab}>
+      {renderContent()}
+    </DashboardLayout>
   );
 };
 
