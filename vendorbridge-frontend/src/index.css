@@ -30,6 +30,13 @@ a {
   color: inherit;
 }
 
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  text-align: left;
+}
+
 button,
 input,
 select,

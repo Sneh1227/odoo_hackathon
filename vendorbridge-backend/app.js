@@ -4,6 +4,7 @@ const passport = require("./passport");
 const authRoutes = require("./authRoutes");
 const { ensureDefaultRoles } = require("./services/roleService");
 const { seedAdminFromEnv } = require("./services/adminProvision");
+const profileRoutes = require("./profileRoutes");
 
 require("dotenv").config();
 
@@ -30,6 +31,7 @@ const corsOptions = {
     if (isAllowed) {
       callback(null, true);
     } else {
+      console.warn(`[CORS] Blocked request from origin: ${origin}`);
       callback(new Error("Not allowed by CORS"));
     }
   },
@@ -53,6 +55,7 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/profile", profileRoutes);
 
 ensureDefaultRoles().catch((error) => {
   console.error("Failed to seed default roles:", error);

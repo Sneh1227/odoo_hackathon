@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import { authService } from "../services/api";
+import { authService, getApiOrigin } from "../services/api";
 import styles from "./Signup.module.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
@@ -76,8 +76,8 @@ const Signup = () => {
   };
 
   const handleGoogleLogin = () => {
-    const port = window.location.port || "5173";
-    window.location.href = `http://localhost:5000/api/auth/google?from_port=${port}`;
+    const origin = encodeURIComponent(window.location.origin);
+    window.location.href = `${getApiOrigin()}/api/auth/google?origin=${origin}`;
   };
 
   return (
