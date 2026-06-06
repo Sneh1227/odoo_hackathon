@@ -26,20 +26,20 @@ body {
   margin: 0;
 }
 
-a {
+<<<<<<< HEAD a {
   color: inherit;
-}
 
-#root {
-  width: 100%;
-  min-height: 100vh;
-  margin: 0;
-  text-align: left;
-}
+  =======#root {
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    text-align: left;
+    >>>>>>>17a1f6c285d6255b0e47764297a5293ce4f6e440
+  }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }

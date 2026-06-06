@@ -2,9 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const passport = require("./passport");
 const authRoutes = require("./authRoutes");
+const profileRoutes = require("./profileRoutes");
 const { ensureDefaultRoles } = require("./services/roleService");
 const { seedAdminFromEnv } = require("./services/adminProvision");
-const profileRoutes = require("./profileRoutes");
 
 require("dotenv").config();
 
@@ -28,6 +28,27 @@ const corsOptions = {
                       /^https?:\/\/localhost:\d+$/.test(origin) ||
                       /^https?:\/\/127\.0\.0\.1:\d+$/.test(origin);
                       
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+
+const defaultFrontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
+const allowedOrigins = [
+  defaultFrontendUrl,
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:3000",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+].filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+
+    const isAllowed = allowedOrigins.includes(origin);
     if (isAllowed) {
       callback(null, true);
     } else {
