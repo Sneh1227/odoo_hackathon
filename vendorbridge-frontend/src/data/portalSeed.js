@@ -1,4 +1,5 @@
-const createId = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+const createId = (prefix) =>
+  `${prefix}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
 export const navByRole = {
   Admin: [
@@ -81,17 +82,42 @@ const vendors = [
 ];
 
 const users = [
-  { id: createId("USR"), name: "Asha Mehta", email: "asha@vendorbridge.com", role: "Procurement Officer", status: "Active" },
-  { id: createId("USR"), name: "Ravi Sharma", email: "ravi@vendorbridge.com", role: "Manager", status: "Active" },
-  { id: createId("USR"), name: "Acme Corporation", email: "billing@acme.com", role: "Vendor", status: "Active" },
-  { id: createId("USR"), name: "Northwind Traders", email: "northwind@supply.com", role: "Vendor", status: "Invited" },
+  {
+    id: createId("USR"),
+    name: "Asha Mehta",
+    email: "asha@vendorbridge.com",
+    role: "Procurement Officer",
+    status: "Active",
+  },
+  {
+    id: createId("USR"),
+    name: "Ravi Sharma",
+    email: "ravi@vendorbridge.com",
+    role: "Manager",
+    status: "Active",
+  },
+  {
+    id: createId("USR"),
+    name: "Acme Corporation",
+    email: "billing@acme.com",
+    role: "Vendor",
+    status: "Active",
+  },
+  {
+    id: createId("USR"),
+    name: "Northwind Traders",
+    email: "northwind@supply.com",
+    role: "Vendor",
+    status: "Invited",
+  },
 ];
 
 const rfqs = [
   {
     id: "RFQ-2026-104",
     title: "Server Racks & Cat6 Cabling",
-    description: "Procurement of 24U server racks, structured cabling, and installation support.",
+    description:
+      "Procurement of 24U server racks, structured cabling, and installation support.",
     deadline: "2026-06-15",
     vendorIds: [vendors[0].id, vendors[1].id, vendors[2].id],
     status: "Open",
@@ -104,7 +130,8 @@ const rfqs = [
   {
     id: "RFQ-2026-118",
     title: "Office Consumables Quarterly",
-    description: "Quarterly procurement for stationery, print paper, and desk supplies.",
+    description:
+      "Quarterly procurement for stationery, print paper, and desk supplies.",
     deadline: "2026-06-12",
     vendorIds: [vendors[1].id, vendors[3].id],
     status: "Reviewing",
@@ -251,10 +278,34 @@ const invoices = [
 ];
 
 const activities = [
-  { id: createId("ACT"), time: "09:00", title: "RFQ-2026-104 published", detail: "Invitations sent to 3 vendors.", tone: "info" },
-  { id: createId("ACT"), time: "10:30", title: "Quotation received", detail: "Nimbus Logistics submitted commercial proposal.", tone: "success" },
-  { id: createId("ACT"), time: "11:15", title: "Approval queued", detail: "RFQ-2026-104 moved to manager approval.", tone: "warning" },
-  { id: createId("ACT"), time: "11:45", title: "Invoice ready", detail: "INV-2026-312 prepared for email dispatch.", tone: "primary" },
+  {
+    id: createId("ACT"),
+    time: "09:00",
+    title: "RFQ-2026-104 published",
+    detail: "Invitations sent to 3 vendors.",
+    tone: "info",
+  },
+  {
+    id: createId("ACT"),
+    time: "10:30",
+    title: "Quotation received",
+    detail: "Nimbus Logistics submitted commercial proposal.",
+    tone: "success",
+  },
+  {
+    id: createId("ACT"),
+    time: "11:15",
+    title: "Approval queued",
+    detail: "RFQ-2026-104 moved to manager approval.",
+    tone: "warning",
+  },
+  {
+    id: createId("ACT"),
+    time: "11:45",
+    title: "Invoice ready",
+    detail: "INV-2026-312 prepared for email dispatch.",
+    tone: "primary",
+  },
 ];
 
 const monthlyTrend = [

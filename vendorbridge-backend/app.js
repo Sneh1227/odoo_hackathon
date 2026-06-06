@@ -58,7 +58,9 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`VendorBridge ERP backend server running on port ${PORT} via app.js`);
+  console.log(
+    `VendorBridge ERP backend server running on port ${PORT} via app.js`,
+  );
 });
 
 module.exports = app;

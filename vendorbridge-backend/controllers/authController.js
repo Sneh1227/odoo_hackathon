@@ -2,27 +2,32 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const db = require("../db");
-const { sendResetEmail, sendWelcomeEmail, sendVendorApprovalEmail } = require("../config/mailer");
+const {
+  sendResetEmail,
+  sendWelcomeEmail,
+  sendVendorApprovalEmail,
+} = require("../config/mailer");
 
 require("dotenv").config();
 
-const JWT_SECRET = process.env.JWT_SECRET || "super_secret_vendorbridge_key_123!";
+const JWT_SECRET =
+  process.env.JWT_SECRET || "super_secret_vendorbridge_key_123!";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 // Role mapping helper constants
 const roleMap = {
-  "Admin": 1,
-  "Vendor": 2,
+  Admin: 1,
+  Vendor: 2,
   "Procurement Officer": 3,
-  "Manager": 4
+  Manager: 4,
 };
 
 const roleIdMap = {
   1: "Admin",
   2: "Vendor",
   3: "Procurement Officer",
-  4: "Manager"
+  4: "Manager",
 };
 
 const isStrongPassword = (pwd) => {
@@ -50,13 +55,15 @@ const register = async (req, res) => {
     const allowedRoles = ["Vendor", "Procurement Officer"];
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({
-        message: "Only 'Vendor' and 'Procurement Officer' roles are permitted during public signup.",
+        message:
+          "Only 'Vendor' and 'Procurement Officer' roles are permitted during public signup.",
       });
     }
 
     if (!isStrongPassword(password)) {
       return res.status(400).json({
-        message: "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
+        message:
+          "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
       });
     }
 
@@ -64,30 +71,40 @@ const register = async (req, res) => {
       return res.status(400).json({ message: "Passwords do not match." });
     }
 
-    const userExists = await db.query("SELECT user_id FROM tbl_users WHERE email = $1", [email]);
+    const userExists = await db.query(
+      "SELECT user_id FROM tbl_users WHERE email = $1",
+      [email],
+    );
     if (userExists.rows.length > 0) {
-      return res.status(400).json({ message: "An account with this email address already exists." });
+      return res
+        .status(400)
+        .json({
+          message: "An account with this email address already exists.",
+        });
     }
 
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     // Ensure role exists in tbl_roles and get its id. If missing, create it.
-    const getRoleResult = await db.query("SELECT role_id FROM tbl_roles WHERE role_name = $1", [role]);
+    const getRoleResult = await db.query(
+      "SELECT role_id FROM tbl_roles WHERE role_name = $1",
+      [role],
+    );
     let roleId;
     if (getRoleResult.rows.length > 0) {
       roleId = getRoleResult.rows[0].role_id;
     } else {
       const insertRole = await db.query(
         "INSERT INTO tbl_roles (role_name) VALUES ($1) RETURNING role_id",
-        [role]
+        [role],
       );
       roleId = insertRole.rows[0].role_id;
     }
 
     const newUser = await db.query(
       "INSERT INTO tbl_users (full_name, email, password, role_id) VALUES ($1, $2, $3, $4) RETURNING user_id, full_name, email, role_id, created_at",
-      [fullName, email, passwordHash, roleId]
+      [fullName, email, passwordHash, roleId],
     );
 
     const registeredUser = {
@@ -99,10 +116,14 @@ const register = async (req, res) => {
     };
 
     // Send welcome email asynchronously
-    sendWelcomeEmail(registeredUser.email, registeredUser.fullName)
-      .catch((emailErr) => {
-        console.error(`[Welcome Email Error] Failed to send welcome email to ${registeredUser.email}:`, emailErr.message);
-      });
+    sendWelcomeEmail(registeredUser.email, registeredUser.fullName).catch(
+      (emailErr) => {
+        console.error(
+          `[Welcome Email Error] Failed to send welcome email to ${registeredUser.email}:`,
+          emailErr.message,
+        );
+      },
+    );
 
     return res.status(201).json({
       message: "Registration successful. You can now log in.",
@@ -110,7 +131,9 @@ const register = async (req, res) => {
     });
   } catch (error) {
     console.error("Register Error:", error);
-    return res.status(500).json({ message: "An error occurred while creating your account." });
+    return res
+      .status(500)
+      .json({ message: "An error occurred while creating your account." });
   }
 };
 
@@ -119,10 +142,14 @@ const login = async (req, res) => {
 
   try {
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required." });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required." });
     }
 
-    const result = await db.query("SELECT * FROM tbl_users WHERE email = $1", [email]);
+    const result = await db.query("SELECT * FROM tbl_users WHERE email = $1", [
+      email,
+    ]);
     if (result.rows.length === 0) {
       return res.status(401).json({ message: "Invalid email or password." });
     }
@@ -131,7 +158,8 @@ const login = async (req, res) => {
 
     if (!user.password) {
       return res.status(400).json({
-        message: "This account was registered using Google. Please log in with Google.",
+        message:
+          "This account was registered using Google. Please log in with Google.",
       });
     }
 
@@ -148,7 +176,9 @@ const login = async (req, res) => {
       role: roleName,
     };
 
-    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    const token = jwt.sign(tokenPayload, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
 
     return res.json({
       message: "Login successful.",
@@ -175,10 +205,14 @@ const forgotPassword = async (req, res) => {
       return res.status(400).json({ message: "Email is required." });
     }
 
-    const result = await db.query("SELECT user_id, full_name, email FROM tbl_users WHERE email = $1", [email]);
+    const result = await db.query(
+      "SELECT user_id, full_name, email FROM tbl_users WHERE email = $1",
+      [email],
+    );
     if (result.rows.length === 0) {
       return res.json({
-        message: "If an account with that email exists, a reset link has been sent.",
+        message:
+          "If an account with that email exists, a reset link has been sent.",
       });
     }
 
@@ -190,7 +224,7 @@ const forgotPassword = async (req, res) => {
 
     await db.query(
       "UPDATE tbl_users SET reset_token = $1, reset_token_expiry = $2 WHERE user_id = $3",
-      [token, expiry, user.user_id]
+      [token, expiry, user.user_id],
     );
 
     const resetLink = `${FRONTEND_URL}/reset-password?token=${token}`;
@@ -198,11 +232,17 @@ const forgotPassword = async (req, res) => {
     await sendResetEmail(user.email, user.full_name, resetLink, "1 hour");
 
     return res.json({
-      message: "If an account with that email exists, a reset link has been sent.",
+      message:
+        "If an account with that email exists, a reset link has been sent.",
     });
   } catch (error) {
     console.error("Forgot Password Error:", error);
-    return res.status(500).json({ message: "An error occurred while handling your forgot password request." });
+    return res
+      .status(500)
+      .json({
+        message:
+          "An error occurred while handling your forgot password request.",
+      });
   }
 };
 
@@ -211,7 +251,11 @@ const resetPassword = async (req, res) => {
 
   try {
     if (!token || !password || !confirmPassword) {
-      return res.status(400).json({ message: "Token, password, and confirm password are required." });
+      return res
+        .status(400)
+        .json({
+          message: "Token, password, and confirm password are required.",
+        });
     }
 
     if (password !== confirmPassword) {
@@ -220,17 +264,20 @@ const resetPassword = async (req, res) => {
 
     if (!isStrongPassword(password)) {
       return res.status(400).json({
-        message: "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
+        message:
+          "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
       });
     }
 
     const result = await db.query(
       "SELECT user_id FROM tbl_users WHERE reset_token = $1 AND reset_token_expiry > NOW()",
-      [token]
+      [token],
     );
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ message: "Password reset token is invalid or has expired." });
+      return res
+        .status(400)
+        .json({ message: "Password reset token is invalid or has expired." });
     }
 
     const userId = result.rows[0].user_id;
@@ -240,13 +287,17 @@ const resetPassword = async (req, res) => {
 
     await db.query(
       "UPDATE tbl_users SET password = $1, reset_token = NULL, reset_token_expiry = NULL WHERE user_id = $2",
-      [passwordHash, userId]
+      [passwordHash, userId],
     );
 
-    return res.json({ message: "Your password has been successfully reset. You can now log in." });
+    return res.json({
+      message: "Your password has been successfully reset. You can now log in.",
+    });
   } catch (error) {
     console.error("Reset Password Error:", error);
-    return res.status(500).json({ message: "An error occurred while resetting your password." });
+    return res
+      .status(500)
+      .json({ message: "An error occurred while resetting your password." });
   }
 };
 
@@ -254,7 +305,7 @@ const profile = async (req, res) => {
   try {
     const result = await db.query(
       "SELECT user_id, full_name, email, role_id, google_id, profile_picture, created_at FROM tbl_users WHERE user_id = $1",
-      [req.user.id]
+      [req.user.id],
     );
 
     if (result.rows.length === 0) {
@@ -271,13 +322,15 @@ const profile = async (req, res) => {
       role: roleName,
       googleId: user.google_id,
       profilePicture: user.profile_picture,
-      created_at: user.created_at
+      created_at: user.created_at,
     };
 
     return res.json({ user: userForResponse });
   } catch (error) {
     console.error("Profile Error:", error);
-    return res.status(500).json({ message: "An error occurred while retrieving your profile." });
+    return res
+      .status(500)
+      .json({ message: "An error occurred while retrieving your profile." });
   }
 };
 
@@ -289,7 +342,10 @@ const approveVendor = async (req, res) => {
       return res.status(400).json({ message: "User ID is required." });
     }
 
-    const userResult = await db.query("SELECT user_id, full_name, email, role_id, is_verified FROM tbl_users WHERE user_id = $1", [id]);
+    const userResult = await db.query(
+      "SELECT user_id, full_name, email, role_id, is_verified FROM tbl_users WHERE user_id = $1",
+      [id],
+    );
     if (userResult.rows.length === 0) {
       return res.status(404).json({ message: "User not found." });
     }
@@ -298,7 +354,11 @@ const approveVendor = async (req, res) => {
     const roleName = roleIdMap[user.role_id] || "Vendor";
 
     if (roleName !== "Vendor") {
-      return res.status(400).json({ message: "Only users with the 'Vendor' role can be approved." });
+      return res
+        .status(400)
+        .json({
+          message: "Only users with the 'Vendor' role can be approved.",
+        });
     }
 
     if (user.is_verified) {
@@ -309,14 +369,14 @@ const approveVendor = async (req, res) => {
           fullName: user.full_name,
           email: user.email,
           role: roleName,
-          is_verified: user.is_verified
+          is_verified: user.is_verified,
         },
       });
     }
 
     const updateResult = await db.query(
       "UPDATE tbl_users SET is_verified = true WHERE user_id = $1 RETURNING user_id, full_name, email, role_id, is_verified, created_at",
-      [id]
+      [id],
     );
     const updatedUser = updateResult.rows[0];
 
@@ -326,13 +386,18 @@ const approveVendor = async (req, res) => {
       email: updatedUser.email,
       role: roleIdMap[updatedUser.role_id],
       is_verified: updatedUser.is_verified,
-      created_at: updatedUser.created_at
+      created_at: updatedUser.created_at,
     };
 
-    sendVendorApprovalEmail(updatedUserForResponse.email, updatedUserForResponse.fullName)
-      .catch((emailErr) => {
-        console.error(`[Vendor Approval Email Error] Failed to send email to ${updatedUserForResponse.email}:`, emailErr.message);
-      });
+    sendVendorApprovalEmail(
+      updatedUserForResponse.email,
+      updatedUserForResponse.fullName,
+    ).catch((emailErr) => {
+      console.error(
+        `[Vendor Approval Email Error] Failed to send email to ${updatedUserForResponse.email}:`,
+        emailErr.message,
+      );
+    });
 
     return res.json({
       message: "Vendor account approved successfully.",
@@ -340,7 +405,11 @@ const approveVendor = async (req, res) => {
     });
   } catch (error) {
     console.error("Approve Vendor Error:", error);
-    return res.status(500).json({ message: "An error occurred while approving the vendor account." });
+    return res
+      .status(500)
+      .json({
+        message: "An error occurred while approving the vendor account.",
+      });
   }
 };
 
