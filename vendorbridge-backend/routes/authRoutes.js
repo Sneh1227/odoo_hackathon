@@ -3,6 +3,7 @@ const passport = require("passport");
 const jwt = require("jsonwebtoken");
 const authController = require("../controllers/authController");
 const authenticateToken = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
@@ -63,6 +64,14 @@ router.post("/reset-password", authController.resetPassword);
 
 // Get authenticated user profile (Protected)
 router.get("/profile", authenticateToken, authController.profile);
+
+// Approve a vendor account (Admin/Procurement Officer/Manager restricted)
+router.put(
+  "/approve-vendor/:id",
+  authenticateToken,
+  authorizeRoles("Admin", "Procurement Officer", "Manager"),
+  authController.approveVendor
+);
 
 // Logout
 router.post("/logout", authController.logout);

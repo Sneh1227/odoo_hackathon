@@ -5,7 +5,7 @@
 -- Let's use a CHECK constraint on the role column to enforce allowed values:
 -- 'Admin', 'Vendor', 'Procurement Officer', 'Manager'
 
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS tbl_users (
     id SERIAL PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,

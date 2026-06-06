@@ -3,6 +3,7 @@ const passport = require("passport");
 const jwt = require("jsonwebtoken");
 const authController = require("./authController");
 const authenticateToken = require("./authMiddleware");
+const authorizeRoles = require("./middleware/roleMiddleware");
 
 const router = express.Router();
 
@@ -50,6 +51,12 @@ router.get(
 router.post("/forgot-password", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);
 router.get("/profile", authenticateToken, authController.profile);
+router.put(
+  "/approve-vendor/:id",
+  authenticateToken,
+  authorizeRoles("Admin", "Procurement Officer", "Manager"),
+  authController.approveVendor
+);
 router.post("/logout", authController.logout);
 
 module.exports = router;

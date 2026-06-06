@@ -1,6 +1,7 @@
 const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const db = require("./db");
+const { sendWelcomeEmail } = require("./emailService");
 
 require("dotenv").config();
 
@@ -62,6 +63,12 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
             "INSERT INTO users (full_name, email, google_id, profile_picture, role, is_verified) VALUES ($1, $2, $3, $4, 'Vendor', true) RETURNING *",
             [fullName, email, googleId, profilePicture]
           );
+
+          // Send welcome email asynchronously
+          sendWelcomeEmail(newUser.rows[0].email, newUser.rows[0].full_name)
+            .catch((emailErr) => {
+              console.error(`[Google Signup Welcome Email Error] Failed to send welcome email to ${newUser.rows[0].email}:`, emailErr.message);
+            });
 
           return done(null, newUser.rows[0]);
         } catch (error) {

@@ -2,7 +2,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const db = require("../db");
-const { sendResetEmail } = require("../config/mailer");
+const { sendResetEmail, sendWelcomeEmail, sendVendorApprovalEmail } = require("../config/mailer");
 
 require("dotenv").config();
 
@@ -71,6 +71,12 @@ const register = async (req, res) => {
       "INSERT INTO users (full_name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, full_name, email, role, created_at",
       [fullName, email, passwordHash, role]
     );
+
+    // Send welcome email asynchronously
+    sendWelcomeEmail(newUser.rows[0].email, newUser.rows[0].full_name)
+      .catch((emailErr) => {
+        console.error(`[Welcome Email Error] Failed to send welcome email to ${newUser.rows[0].email}:`, emailErr.message);
+      });
 
     return res.status(201).json({
       message: "Registration successful. You can now log in.",
@@ -254,6 +260,60 @@ const profile = async (req, res) => {
 };
 
 // 6. POST /api/auth/logout
+};
+
+// 7. PUT /api/auth/approve-vendor/:id
+const approveVendor = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    if (!id) {
+      return res.status(400).json({ message: "User ID is required." });
+    }
+
+    // Fetch user to verify role
+    const userResult = await db.query("SELECT id, full_name, email, role, is_verified FROM users WHERE id = $1", [id]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const user = userResult.rows[0];
+
+    if (user.role !== "Vendor") {
+      return res.status(400).json({ message: "Only users with the 'Vendor' role can be approved." });
+    }
+
+    if (user.is_verified) {
+      return res.status(200).json({
+        message: "Vendor account is already approved.",
+        user,
+      });
+    }
+
+    // Update DB
+    const updateResult = await db.query(
+      "UPDATE users SET is_verified = true, updated_at = NOW() WHERE id = $1 RETURNING id, full_name, email, role, is_verified, created_at, updated_at",
+      [id]
+    );
+    const updatedUser = updateResult.rows[0];
+
+    // Dispatch approval email
+    sendVendorApprovalEmail(updatedUser.email, updatedUser.full_name)
+      .catch((emailErr) => {
+        console.error(`[Vendor Approval Email Error] Failed to send email to ${updatedUser.email}:`, emailErr.message);
+      });
+
+    return res.json({
+      message: "Vendor account approved successfully.",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Approve Vendor Error:", error);
+    return res.status(500).json({ message: "An error occurred while approving the vendor account." });
+  }
+};
+
+// 6. POST /api/auth/logout
 const logout = async (req, res) => {
   // Stateless JWT doesn't strictly need a backend logout trigger,
   // but we provide it for client compatibility.
@@ -266,5 +326,6 @@ module.exports = {
   forgotPassword,
   resetPassword,
   profile,
+  approveVendor,
   logout,
 };
