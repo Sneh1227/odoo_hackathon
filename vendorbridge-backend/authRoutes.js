@@ -19,23 +19,32 @@ router.post("/login", authController.login);
 
 router.get(
   "/google",
-  passport.authenticate("google", {
-    scope: ["profile", "email"],
-    session: false,
-  }),
+  (req, res, next) => {
+    const fromPort = req.query.from_port || "";
+    passport.authenticate("google", {
+      scope: ["profile", "email"],
+      session: false,
+      state: fromPort,
+    })(req, res, next);
+  }
 );
 
 router.get("/google/callback", (req, res, next) => {
   passport.authenticate("google", { session: false }, (err, user, info) => {
+    const state = req.query.state || "";
+    const targetFrontendUrl = state && /^\d+$/.test(state)
+      ? `http://localhost:${state}`
+      : FRONTEND_URL;
+
     if (err) {
       console.error("Google Auth Error:", err);
-      return res.redirect(`${FRONTEND_URL}/login?error=GoogleAuthFailed`);
+      return res.redirect(`${targetFrontendUrl}/login?error=GoogleAuthFailed`);
     }
     if (!user) {
       if (info && info.message === "UserNotRegistered") {
-        return res.redirect(`${FRONTEND_URL}/login?error=UserNotRegistered`);
+        return res.redirect(`${targetFrontendUrl}/login?error=UserNotRegistered`);
       }
-      return res.redirect(`${FRONTEND_URL}/login?error=GoogleAuthFailed`);
+      return res.redirect(`${targetFrontendUrl}/login?error=GoogleAuthFailed`);
     }
 
     try {
@@ -55,11 +64,11 @@ router.get("/google/callback", (req, res, next) => {
       const roleEncoded = encodeURIComponent(roleName);
 
       return res.redirect(
-        `${FRONTEND_URL}/login?token=${token}&role=${roleEncoded}&fullName=${fullNameEncoded}`,
+        `${targetFrontendUrl}/login?token=${token}&role=${roleEncoded}&fullName=${fullNameEncoded}`,
       );
     } catch (tokenErr) {
       console.error("Google Auth Token Generation Error:", tokenErr);
-      return res.redirect(`${FRONTEND_URL}/login?error=TokenGenerationError`);
+      return res.redirect(`${targetFrontendUrl}/login?error=TokenGenerationError`);
     }
   })(req, res, next);
 });

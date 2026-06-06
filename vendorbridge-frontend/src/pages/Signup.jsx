@@ -76,7 +76,8 @@ const Signup = () => {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = "http://localhost:5000/api/auth/google";
+    const port = window.location.port || "5173";
+    window.location.href = `http://localhost:5000/api/auth/google?from_port=${port}`;
   };
 
   return (
